@@ -1,13 +1,13 @@
-package com.example.recuitmentbackend;
+package com.example.recruitmentbackend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class RecuitmentBackendApplication {
+public class RecruitmentBackendApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(RecuitmentBackendApplication.class, args);
+        SpringApplication.run(RecruitmentBackendApplication.class, args);
     }
 
 }
