@@ -4,7 +4,7 @@ import com.recruitment.backend.domain.entities.Cv;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.UUID;
+
 @Repository
-public interface CvRepository extends JpaRepository<Cv, Long> {
-        Cv findByCandidateId(Long candidateId);
-}
+public interface CvRepository extends JpaRepository<Cv, UUID> { }

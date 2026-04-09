@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,7 +41,7 @@ public class SkillService {
     }
 
     @Transactional
-    public void linkSkillsToCandidate(Long candidateId, List<String> rawSkillNames) {
+    public void linkSkillsToCandidate(UUID candidateId, List<String> rawSkillNames) {
 
         Candidate candidate = candidateRepository.findById(candidateId)
                 .orElseThrow(() -> new RuntimeException("Candidate không tồn tại với ID: " + candidateId));

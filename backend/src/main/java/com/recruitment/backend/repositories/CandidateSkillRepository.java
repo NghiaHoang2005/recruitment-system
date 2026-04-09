@@ -7,10 +7,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.UUID;
+
 @Repository
 public interface CandidateSkillRepository extends JpaRepository<CandidateSkill, CandidateSkillId> {
 
     @Modifying
     @Query("DELETE FROM CandidateSkill cs WHERE cs.candidate.userId = :candidateId")
-    void deleteAllByCandidateId(Long candidateId);
+    void deleteAllByCandidateId(UUID candidateId);
 }

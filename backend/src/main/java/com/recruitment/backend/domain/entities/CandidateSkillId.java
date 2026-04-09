@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.util.UUID;
 
 @Embeddable
 @Data
@@ -15,8 +16,8 @@ import java.io.Serializable;
 public class CandidateSkillId implements Serializable {
 
     @Column(name = "candidate_id")
-    private Long candidateId;
+    private UUID candidateId;
 
     @Column(name = "skill_id")
-    private Long skillId;
+    private UUID skillId;
 }

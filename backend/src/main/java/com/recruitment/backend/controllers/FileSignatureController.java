@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/files")
@@ -31,7 +32,7 @@ public class FileSignatureController {
     public ResponseEntity<Map<String, Object>> generateSignature() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         User currentUser = (User) authentication.getPrincipal();
-        Long currentUserId = currentUser.getId();
+        UUID currentUserId = currentUser.getId();
 
         long timestamp = Instant.now().getEpochSecond();
         String currentMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy_MM"));

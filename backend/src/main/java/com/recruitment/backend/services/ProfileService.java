@@ -7,6 +7,8 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
@@ -15,7 +17,7 @@ public class ProfileService {
     private final SkillService skillService;
 
     @Transactional
-    public void confirmAndUpdateProfile(Long userId, ProfileCandidateUpdateRequest request) {
+    public void confirmAndUpdateProfile(UUID userId, ProfileCandidateUpdateRequest request) {
         Candidate candidate = candidateRepository.findById(userId).orElseThrow();
         candidate.setFullName(request.getFullName());
         candidate.setHeadline(request.getHeadline());

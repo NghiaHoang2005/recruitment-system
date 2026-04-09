@@ -3,6 +3,8 @@ package com.recruitment.backend.domain.entities;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.UUID;
+
 @Entity
 @Getter
 @Setter
@@ -13,7 +15,7 @@ import lombok.*;
 public class Candidate {
     @Id
     @Column(name = "user_id")
-    private Long userId;
+    private UUID userId;
 
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
