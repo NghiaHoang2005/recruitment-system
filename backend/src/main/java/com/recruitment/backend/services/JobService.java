@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +45,7 @@ public class JobService {
         return jobRepository.findAll().stream().map(jobMapper::toDto).collect(Collectors.toList());
     }
 
-    public JobDTO getJobById(Long id) {
+    public JobDTO getJobById(UUID id) {
         Job job = jobRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
         return jobMapper.toDto(job);

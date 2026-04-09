@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/jobs")
@@ -29,7 +30,7 @@ public class JobController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<JobDTO>> getJobById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<JobDTO>> getJobById(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.success(jobService.getJobById(id)));
     }
 }
