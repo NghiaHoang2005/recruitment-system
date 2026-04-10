@@ -3,9 +3,11 @@ package com.recruitment.backend.services;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.recruitment.backend.domain.dtos.Cv.CvUploadCompleteRequest;
-import com.recruitment.backend.domain.entities.Candidate;
-import com.recruitment.backend.domain.entities.Cv;
-import com.recruitment.backend.domain.entities.CvStatus;
+import com.recruitment.backend.domain.entities.Candidate.Candidate;
+import com.recruitment.backend.domain.entities.Cv.Cv;
+import com.recruitment.backend.domain.entities.Cv.CvStatus;
+import com.recruitment.backend.exceptions.AppException;
+import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.repositories.CandidateRepository;
 import com.recruitment.backend.repositories.CvRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +37,7 @@ public class CvService {
             String uploaderId = (String) customData.get("uploader_id");
 
             if (uploaderId == null || !uploaderId.equals(currentUserId.toString())) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hành vi gian lận bị từ chối!");
+                throw new AppException(ErrorCode.UNAUTHORIZED);
             }
 
             Candidate candidateRef = candidateRepository.getReferenceById(currentUserId);
@@ -45,7 +47,6 @@ public class CvService {
             newCv.setCvName(request.getCvName());
             newCv.setAiStatus(CvStatus.PENDING);
             newCv.setCandidate(candidateRef);
-
             newCv = cvRepository.save(newCv);
 
             asyncCvProcessor.processCvInBackground(newCv.getId(), request.getPublicId());
@@ -56,22 +57,22 @@ public class CvService {
             throw e;
         } catch (Exception e) {
             log.error("Lỗi khi xử lý CV ID trên Cloudinary: {}", request.getPublicId(), e);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File không tồn tại trên hệ thống!");
+            throw new AppException(ErrorCode.CV_PROCESSING_FAILED);
         }
     }
 
     public Map<String, Object> getExtractedData(UUID currentUserId, UUID cvId) {
         Cv cv = cvRepository.findById(cvId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CV không tồn tại"));
+                .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
 
         if (!cv.getCandidate().getUserId().equals(currentUserId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập CV này");
+            throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (CvStatus.PENDING.equals(cv.getAiStatus())) {
-            throw new ResponseStatusException(HttpStatus.ACCEPTED, "AI is still processing");
+            throw new AppException(ErrorCode.AI_PROCESSING);
         } else if (CvStatus.FAILED.equals(cv.getAiStatus())) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi trích xuất CV");
+            throw new AppException(ErrorCode.CV_PROCESSING_FAILED);
         }
 
         Map<String, Object> response = new HashMap<>();
@@ -79,5 +80,28 @@ public class CvService {
         response.put("parsedData", cv.getParsedData());
 
         return response;
+    }
+
+    public String getPresignedUrl(UUID currentUserId, UUID cvId) {
+        Cv cv = cvRepository.findById(cvId)
+                .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
+
+        if (!cv.getCandidate().getUserId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        try {
+            String signedUrl = cloudinary.url()
+                    .resourceType("raw")
+                    .type("authenticated")
+                    .signed(true)
+                    .generate(cv.getFileUrl());
+
+            return signedUrl;
+
+        } catch (Exception e) {
+            log.error("Lỗi khi tạo Presigned URL từ Cloudinary cho file: {}", cv.getFileUrl(), e);
+            throw new AppException(ErrorCode.PRESIGNED_URL_FAILED);
+        }
     }
 }

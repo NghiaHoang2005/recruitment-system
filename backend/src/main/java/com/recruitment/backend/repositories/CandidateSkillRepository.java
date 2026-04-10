@@ -1,7 +1,7 @@
 package com.recruitment.backend.repositories;
 
-import com.recruitment.backend.domain.entities.CandidateSkill;
-import com.recruitment.backend.domain.entities.CandidateSkillId;
+import com.recruitment.backend.domain.entities.Candidate.CandidateSkill;
+import com.recruitment.backend.domain.entities.Candidate.CandidateSkillId;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

@@ -1,5 +1,6 @@
-package com.recruitment.backend.domain.entities;
+package com.recruitment.backend.domain.entities.Candidate;
 
+import com.recruitment.backend.domain.entities.User;
 import jakarta.persistence.*;
 import lombok.*;
 

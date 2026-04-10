@@ -1,4 +1,4 @@
-package com.recruitment.backend.domain.entities;
+package com.recruitment.backend.domain.entities.Candidate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;

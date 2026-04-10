@@ -1,5 +1,7 @@
 package com.recruitment.backend.services;
 
+import com.recruitment.backend.exceptions.AppException;
+import com.recruitment.backend.exceptions.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Service;
@@ -27,7 +29,7 @@ public class IntegrationService {
             return tika.parseToString(tempFile);
 
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi khi tải hoặc đọc file (PDF/DOCX)", e);
+            throw new AppException(ErrorCode.READ_FILE_FAILED);
         } finally {
             if (tempFile != null && tempFile.exists()) {
                 try {
@@ -42,5 +44,10 @@ public class IntegrationService {
     public String callAiToParseJson(String rawText) {
         // Gửi rawText tới OpenAI/Gemini, prompt yêu cầu trả về chuẩn JSON
         return "{\"full_name\": \"Nguyễn Văn A\", \"extracted_skills\": [\"Java\", \"PostgreSQL\"]}";
+    }
+
+    public String callAiToGetEmbeddings(String text) {
+        // Gửi text tới OpenAI/Gemini để lấy vector embedding
+        return "[0.123, 0.456, 0.789]";
     }
 }

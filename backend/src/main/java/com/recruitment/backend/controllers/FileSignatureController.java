@@ -1,15 +1,8 @@
 package com.recruitment.backend.controllers;
 
 import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
-import com.recruitment.backend.domain.dtos.Cv.CvUploadCompleteRequest;
-import com.recruitment.backend.domain.entities.Cv;
-import com.recruitment.backend.domain.entities.CvStatus;
 import com.recruitment.backend.domain.entities.User;
-import com.recruitment.backend.repositories.CvRepository;
-import com.recruitment.backend.services.AsyncCvProcessor;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;

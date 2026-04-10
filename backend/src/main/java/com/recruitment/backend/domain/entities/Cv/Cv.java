@@ -1,5 +1,6 @@
-package com.recruitment.backend.domain.entities;
+package com.recruitment.backend.domain.entities.Cv;
 
+import com.recruitment.backend.domain.entities.Candidate.Candidate;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -31,6 +32,9 @@ public class Cv {
 
     @Enumerated(EnumType.STRING)
     private CvStatus aiStatus;
+
+    @Column(columnDefinition = "TEXT")
+    private String rawText;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")

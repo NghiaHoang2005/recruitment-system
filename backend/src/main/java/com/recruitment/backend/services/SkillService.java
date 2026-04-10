@@ -1,8 +1,10 @@
 package com.recruitment.backend.services;
 
-import com.recruitment.backend.domain.entities.Candidate;
-import com.recruitment.backend.domain.entities.CandidateSkill;
+import com.recruitment.backend.domain.entities.Candidate.Candidate;
+import com.recruitment.backend.domain.entities.Candidate.CandidateSkill;
 import com.recruitment.backend.domain.entities.Skill;
+import com.recruitment.backend.exceptions.AppException;
+import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.repositories.CandidateRepository;
 import com.recruitment.backend.repositories.CandidateSkillRepository;
 import com.recruitment.backend.repositories.SkillRepository;
@@ -44,7 +46,7 @@ public class SkillService {
     public void linkSkillsToCandidate(UUID candidateId, List<String> rawSkillNames) {
 
         Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new RuntimeException("Candidate không tồn tại với ID: " + candidateId));
+                .orElseThrow(() -> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
 
         List<Skill> validSkills = processAndGetSkills(rawSkillNames);
 

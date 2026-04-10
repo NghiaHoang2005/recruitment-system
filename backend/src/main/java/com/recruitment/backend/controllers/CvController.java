@@ -1,16 +1,13 @@
 package com.recruitment.backend.controllers;
 
-import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
-import com.recruitment.backend.domain.dtos.Cv.CvParsedResponse;
+import com.cloudinary.Api;
+import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.Cv.CvUploadCompleteRequest;
+import com.recruitment.backend.domain.dtos.CvResponse;
+import com.recruitment.backend.domain.dtos.PresignedUrlResponse;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
-import com.recruitment.backend.domain.entities.Candidate;
-import com.recruitment.backend.domain.entities.Cv;
-import com.recruitment.backend.domain.entities.CvStatus;
+import com.recruitment.backend.domain.entities.Cv.Cv;
 import com.recruitment.backend.domain.entities.User;
-import com.recruitment.backend.repositories.CvRepository;
-import com.recruitment.backend.services.AsyncCvProcessor;
 import com.recruitment.backend.services.CvService;
 import com.recruitment.backend.services.ProfileService;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +17,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
@@ -41,36 +37,35 @@ public class CvController {
     }
 
     @PostMapping("/process-uploaded")
-    @PreAuthorize("hasRole('CANDIDATE')")
-    public ResponseEntity<?> processUploadedCv(@RequestBody CvUploadCompleteRequest request) {
-        try {
-            Cv newCv = cvService.processAndSaveUploadedCv(getCurrentUserId(), request);
-            return ResponseEntity.ok(newCv);
-        } catch (ResponseStatusException e) {
-            // Nắm bắt lỗi từ Service và trả về đúng HTTP Status
-            return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
-        }
+    public ResponseEntity<ApiResponse<CvResponse>> processUploadedCv(@RequestBody CvUploadCompleteRequest request) {
+        Cv newCv = cvService.processAndSaveUploadedCv(getCurrentUserId(), request);
+        CvResponse response = CvResponse.builder()
+                .id(newCv.getId())
+                .fileName(newCv.getCvName())
+                .fileUrl(newCv.getFileUrl())
+                .uploadedAt(newCv.getUploadedAt())
+                .build();
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
     @GetMapping("/{cvId}/extracted-data")
-    @PreAuthorize("hasRole('CANDIDATE')")
     public ResponseEntity<?> getExtractedData(@PathVariable UUID cvId) {
-        try {
-            Map<String, Object> response = cvService.getExtractedData(getCurrentUserId(), cvId);
-            return ResponseEntity.ok(response);
-        } catch (ResponseStatusException e) {
-            return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
-        }
+        Map<String, Object> response = cvService.getExtractedData(getCurrentUserId(), cvId);
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/sync-profile")
-    @PreAuthorize("hasRole('CANDIDATE')")
-    public ResponseEntity<?> syncToProfile(@RequestBody ProfileCandidateUpdateRequest request) {
-        try {
-            profileService.confirmAndUpdateProfile(getCurrentUserId(), request);
-            return ResponseEntity.ok("Hồ sơ của bạn đã được cập nhật thành công!");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Có lỗi xảy ra khi cập nhật hồ sơ: " + e.getMessage());
-        }
+    public ResponseEntity<ApiResponse<String>> syncToProfile(@RequestBody ProfileCandidateUpdateRequest request) {
+        profileService.confirmAndUpdateProfile(getCurrentUserId(), request);
+        return ResponseEntity.ok(ApiResponse.success("Hồ sơ của bạn đã được cập nhật thành công!"));
+    }
+
+    @GetMapping("/{cvId}/presigned-url")
+    public ResponseEntity<ApiResponse<PresignedUrlResponse>> getPresignedUrl(@PathVariable UUID cvId) {
+        String url = cvService.getPresignedUrl(getCurrentUserId(), cvId);
+
+        PresignedUrlResponse response = PresignedUrlResponse.builder()
+                .downloadUrl(url)
+                .build();
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

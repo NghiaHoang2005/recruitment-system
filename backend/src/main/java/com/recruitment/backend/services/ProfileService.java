@@ -1,7 +1,9 @@
 package com.recruitment.backend.services;
 
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
-import com.recruitment.backend.domain.entities.Candidate;
+import com.recruitment.backend.domain.entities.Candidate.Candidate;
+import com.recruitment.backend.exceptions.AppException;
+import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.repositories.CandidateRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +20,7 @@ public class ProfileService {
 
     @Transactional
     public void confirmAndUpdateProfile(UUID userId, ProfileCandidateUpdateRequest request) {
-        Candidate candidate = candidateRepository.findById(userId).orElseThrow();
+        Candidate candidate = candidateRepository.findById(userId).orElseThrow(()-> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
         candidate.setFullName(request.getFullName());
         candidate.setHeadline(request.getHeadline());
         candidate.setPhoneNumber(request.getPhoneNumber());
