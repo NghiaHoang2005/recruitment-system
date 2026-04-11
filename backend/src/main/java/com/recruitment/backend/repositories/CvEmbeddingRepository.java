@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface CvEmbeddingRepository extends JpaRepository<CvEmbedding, UUID> {
+    void deleteByCvId(UUID cvId);
+
     List<CvEmbedding> findByCvId(UUID cvId);
 
     List<CvEmbedding> findByType(EmbeddingType type);
@@ -24,6 +26,23 @@ public interface CvEmbeddingRepository extends JpaRepository<CvEmbedding, UUID> 
     List<UUID> findTopMatchingCvIds(
             @Param("queryVector") String queryVector,
             @Param("type") String type,
+            @Param("topK") int topK
+    );
+
+    @Query(value = """
+        SELECT DISTINCT e.cv_id
+        FROM cv_embeddings e
+        WHERE e.type = :type
+          AND e.model = :model
+          AND e.dimensions = :dimensions
+        ORDER BY e.vector <=> cast(:queryVector as vector)
+        LIMIT :topK
+        """, nativeQuery = true)
+    List<UUID> findTopMatchingCvIdsByTypeAndModelAndDimensions(
+            @Param("queryVector") String queryVector,
+            @Param("type") String type,
+            @Param("model") String model,
+            @Param("dimensions") int dimensions,
             @Param("topK") int topK
     );
 }

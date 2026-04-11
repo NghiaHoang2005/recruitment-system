@@ -27,3 +27,57 @@ cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME}
   api-key: ${CLOUDINARY_API_KEY}
   api-secret: ${CLOUDINARY_API_SECRET}
+
+ai:
+  extraction:
+    active-provider: ${AI_EXTRACTION_PROVIDER:mock}
+    model: ${AI_EXTRACTION_MODEL:gemini-1.5-flash}
+    prompt-version: ${AI_EXTRACTION_PROMPT_VERSION:cv_extract_v3}
+    fallback-model: ${AI_EXTRACTION_FALLBACK_MODEL:gemini-1.5-pro}
+    temperature: ${AI_EXTRACTION_TEMPERATURE:0.1}
+    max-tokens: ${AI_EXTRACTION_MAX_TOKENS:2000}
+    retries: ${AI_EXTRACTION_RETRIES:2}
+    timeout-ms: ${AI_EXTRACTION_TIMEOUT_MS:20000}
+  embedding:
+    active-provider: ${AI_EMBEDDING_PROVIDER:mock}
+    model: ${AI_EMBEDDING_MODEL:embedding-001}
+    dimensions: ${AI_EMBEDDING_DIMENSIONS:768}
+    batch-size: ${AI_EMBEDDING_BATCH_SIZE:1}
+    chunk-token-size: ${AI_EMBEDDING_CHUNK_TOKEN_SIZE:500}
+    chunk-token-overlap: ${AI_EMBEDDING_CHUNK_TOKEN_OVERLAP:50}
+    retries: ${AI_EMBEDDING_RETRIES:2}
+    timeout-ms: ${AI_EMBEDDING_TIMEOUT_MS:20000}
+    max-characters-per-input: ${AI_EMBEDDING_MAX_CHARACTERS_PER_INPUT:8000}
+  prompts:
+    active-version: ${AI_PROMPT_VERSION:cv_extract_v3}
+    templates:
+      cv_extract_v3.default.cv_extract_profile: |
+        You are a strict CV parser.
+        Return valid JSON only. No markdown, no prose.
+        Language: {{language}}
+        Required schema:
+        {{target_schema}}
+
+        CV text:
+        {{cv_text}}
+
+        If a field is unknown, use null or an empty array.
+      cv_extract_v3.default.cv_extract_experience: |
+        Extract only work experience timeline as strict JSON.
+        Keep chronology and avoid hallucination.
+        Schema:
+        {{target_schema}}
+        CV text:
+        {{cv_text}}
+      cv_extract_v3.default.cv_extract_skills: |
+        Extract skills as strict JSON array.
+        Include synonyms and normalize duplicates.
+        CV language: {{language}}
+        CV text:
+        {{cv_text}}
+      cv_extract_v3.default.cv_summarize_for_embedding: |
+        Summarize this CV in 5 concise bullets for semantic retrieval.
+        Keep only factual information.
+        CV language: {{language}}
+        CV text:
+        {{cv_text}}
