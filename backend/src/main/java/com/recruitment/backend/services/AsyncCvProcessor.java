@@ -23,14 +23,9 @@ public class AsyncCvProcessor {
     private final Cloudinary cloudinary;
 
     @Async("taskExecutor")
-    public void processCvInBackground(UUID cvId, String publicId) {
+    public void processCvInBackground(UUID cvId, String url) {
         try {
-            String signedUrl = cloudinary.url()
-                    .resourceType("raw")
-                    .type("authenticated")
-                    .signed(true)
-                    .generate(publicId);
-            aiOrchestrator.processCv(cvId, signedUrl);
+            aiOrchestrator.processCv(cvId, url);
 
             Cv cv = cvRepository.findById(cvId).orElseThrow(()->new AppException(ErrorCode.CV_NOT_FOUND));
             cv.setAiStatus(CvStatus.COMPLETED);

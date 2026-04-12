@@ -17,6 +17,9 @@ public enum ErrorCode {
     AI_PROCESSING(2003, "AI đang xử lý CV, vui lòng thử lại sau", HttpStatus.ACCEPTED),
     PRESIGNED_URL_FAILED(2004, "Không thể tạo đường dẫn tải file", HttpStatus.INTERNAL_SERVER_ERROR),
     READ_FILE_FAILED(2005, "Không thể đọc file CV", HttpStatus.INTERNAL_SERVER_ERROR),
+    FILE_EMPTY(2006, "File CV không được để trống", HttpStatus.BAD_REQUEST),
+    INVALID_FILE_TYPE(2007, "Định dạng file không hợp lệ. Chỉ chấp nhận PDF hoặc DOCX", HttpStatus.BAD_REQUEST),
+    URL_NOT_FOUND(2008, "Không tìm thấy URL của file CV", HttpStatus.INTERNAL_SERVER_ERROR),
 
     CANDIDATE_NOT_FOUND(3001, "Ứng viên không tồn tại", HttpStatus.NOT_FOUND);
 

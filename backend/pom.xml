@@ -114,8 +114,11 @@
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-vector</artifactId>
         </dependency>
-        <!-- Jackson for JSON processing (already included via spring-boot-starter) -->
-        <!-- RestTemplate is included in spring-boot-starter-web -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>9.2.0</version>
+        </dependency>
 	</dependencies>
 
 	<build>

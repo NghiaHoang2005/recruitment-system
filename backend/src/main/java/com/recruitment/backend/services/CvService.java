@@ -2,7 +2,8 @@ package com.recruitment.backend.services;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
-import com.recruitment.backend.domain.dtos.Cv.CvUploadCompleteRequest;
+import com.recruitment.backend.domain.dtos.Cv.CvUploadRequest;
+import com.recruitment.backend.domain.dtos.CvResponse;
 import com.recruitment.backend.domain.entities.Candidate.Candidate;
 import com.recruitment.backend.domain.entities.Cv.Cv;
 import com.recruitment.backend.domain.entities.Cv.CvStatus;
@@ -10,15 +11,16 @@ import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.repositories.CandidateRepository;
 import com.recruitment.backend.repositories.CvRepository;
+import com.recruitment.backend.services.storage.FirebaseStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -28,37 +30,60 @@ public class CvService {
     private final AsyncCvProcessor asyncCvProcessor;
     private final CvRepository cvRepository;
     private final CandidateRepository candidateRepository;
+    private final FirebaseStorageService firebaseStorageService;
 
-    public Cv processAndSaveUploadedCv(UUID currentUserId, CvUploadCompleteRequest request) {
-        try {
-            Map resourceData = cloudinary.api().resource(request.getPublicId(), ObjectUtils.emptyMap());
-            Map contextData = (Map) resourceData.get("context");
-            Map customData = (Map) contextData.get("custom");
-            String uploaderId = (String) customData.get("uploader_id");
+    private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword"
+    );
 
-            if (uploaderId == null || !uploaderId.equals(currentUserId.toString())) {
-                throw new AppException(ErrorCode.UNAUTHORIZED);
-            }
-
-            Candidate candidateRef = candidateRepository.getReferenceById(currentUserId);
-
-            Cv newCv = new Cv();
-            newCv.setFileUrl(request.getPublicId());
-            newCv.setCvName(request.getCvName());
-            newCv.setAiStatus(CvStatus.PENDING);
-            newCv.setCandidate(candidateRef);
-            newCv = cvRepository.save(newCv);
-
-            asyncCvProcessor.processCvInBackground(newCv.getId(), request.getPublicId());
-
-            return newCv;
-
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Lỗi khi xử lý CV ID trên Cloudinary: {}", request.getPublicId(), e);
-            throw new AppException(ErrorCode.CV_PROCESSING_FAILED);
+    private void validateCvFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.FILE_EMPTY);
         }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
+            throw new AppException(ErrorCode.INVALID_FILE_TYPE);
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null ||
+                (!originalFilename.toLowerCase().endsWith(".pdf") &&
+                        !originalFilename.toLowerCase().endsWith(".docx"))) {
+            throw new AppException(ErrorCode.INVALID_FILE_TYPE);
+        }
+    }
+
+    public CvResponse processAndSaveUploadedCv(UUID currentUserId, CvUploadRequest request) {
+       try{
+           String currentMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy_MM"));
+           String folder = "cv_uploads/" + currentMonth;
+           String filePath = firebaseStorageService.uploadCv(request.getFile(), folder);
+
+           Candidate candidateRef = candidateRepository.getReferenceById(currentUserId);
+           Cv newCv = new Cv();
+           newCv.setFileUrl(filePath);
+           newCv.setCvName(request.getFile().getOriginalFilename());
+           newCv.setAiStatus(CvStatus.PENDING);
+           newCv.setCandidate(candidateRef);
+           newCv = cvRepository.save(newCv);
+
+           String signedUrlForAi = firebaseStorageService.getPresignedUrl(filePath);
+           asyncCvProcessor.processCvInBackground(newCv.getId(), signedUrlForAi);
+
+           return CvResponse.builder()
+                   .id(newCv.getId())
+                   .fileName(newCv.getCvName())
+                   .fileUrl(filePath)
+                   .uploadedAt(newCv.getUploadedAt())
+                   .build();
+
+       } catch (Exception e) {
+           log.error("Lỗi khi upload CV: ", e);
+           throw new AppException(ErrorCode.CV_PROCESSING_FAILED);
+       }
     }
 
     public Map<String, Object> getExtractedData(UUID currentUserId, UUID cvId) {
@@ -91,11 +116,7 @@ public class CvService {
         }
 
         try {
-            String signedUrl = cloudinary.url()
-                    .resourceType("raw")
-                    .type("authenticated")
-                    .signed(true)
-                    .generate(cv.getFileUrl());
+            String signedUrl = firebaseStorageService.getPresignedUrl(cv.getFileUrl());
 
             return signedUrl;
 
