@@ -2,10 +2,12 @@ package com.recruitment.backend.controllers;
 
 import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.Cv.CvUploadRequest;
+import com.recruitment.backend.domain.dtos.Cv.ExtractionStatusResponse;
 import com.recruitment.backend.domain.dtos.CvResponse;
 import com.recruitment.backend.domain.dtos.PresignedUrlResponse;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
 import com.recruitment.backend.domain.entities.Cv.Cv;
+import com.recruitment.backend.domain.entities.Cv.CvStatus;
 import com.recruitment.backend.domain.entities.User;
 import com.recruitment.backend.services.CvService;
 import com.recruitment.backend.services.ProfileService;
@@ -55,5 +57,17 @@ public class CvController {
                 .downloadUrl(url)
                 .build();
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/{cvId}/retry")
+    public ResponseEntity<ApiResponse<String>> retryCvExtraction(@PathVariable UUID cvId) {
+        cvService.retryCvExtraction(getCurrentUserId(), cvId);
+        return ResponseEntity.ok(ApiResponse.success("CV được gửi lại xử lý. Vui lòng chờ kết quả."));
+    }
+
+    @GetMapping("/{cvId}/extraction-status")
+    public ResponseEntity<ApiResponse<ExtractionStatusResponse>> getExtractionStatus(@PathVariable UUID cvId) {
+        ExtractionStatusResponse status = cvService.getExtractionStatus(getCurrentUserId(), cvId);
+        return ResponseEntity.ok(ApiResponse.success(status));
     }
 }

@@ -21,7 +21,7 @@ public class AiProperties {
         private String activeProvider = "gemini";
         private String model = "gemini-1.5-flash";
         private String fallbackModel = "gemini-1.5-flash";
-        private String promptVersion = "cv_extract_v1";
+        private String promptVersion = "cv_extract_v3";
         private Double temperature = 0.1;
         private Integer maxTokens = 2000;
         private Integer retries = 2;
@@ -72,7 +72,7 @@ public class AiProperties {
     @Getter
     @Setter
     public static class Prompts {
-        private String activeVersion = "cv_extract_v1";
+        private String activeVersion = "cv_extract_v3";
         private Map<String, String> templates = new HashMap<>();
     }
 }

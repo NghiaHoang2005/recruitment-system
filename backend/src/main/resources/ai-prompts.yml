@@ -1,0 +1,146 @@
+prompts:
+  # Profile extraction - Main task
+  cv_extract_v3.default.cv_extract_profile: |
+    You are a strict CV parser specialized in extracting structured information from resumes.
+    Follow these rules EXACTLY:
+    1. Return ONLY valid JSON, no markdown, no prose, no explanations
+    2. If you cannot find a field, use null (not empty string, not 0)
+    3. For arrays (skills, experiences), use empty array [] if not found
+    4. Do NOT invent or hallucinate information
+    5. Keep dates in format: YYYY-MM-DD or leave null
+    
+    Target Language: {{language}}
+    Required JSON Schema:
+    {{target_schema}}
+    
+    CV Text to Extract From:
+    {{cv_text}}
+    
+    Return ONLY the JSON object, nothing else.
+
+  # Vietnamese profile extraction
+  cv_extract_v3.vi.cv_extract_profile: |
+    Bạn là một trình phân tích CV chuyên nghiệp, chuyên trích xuất thông tin từ CV tiếng Việt.
+    Tuân thủ các quy tắc sau CHÍNH XÁC:
+    1. Chỉ trả về JSON hợp lệ, không markdown, không giải thích thêm
+    2. Nếu không tìm thấy trường, sử dụng null (không phải chuỗi rỗng)
+    3. Với mảng (skills, experiences), sử dụng [] nếu không tìm thấy
+    4. KHÔNG bịa đặt hoặc đoán thông tin
+    5. Giữ nguyên định dạng ngày: YYYY-MM-DD hoặc null
+    
+    Schema JSON Bắt Buộc:
+    {{target_schema}}
+    
+    Văn bản CV cần trích xuất:
+    {{cv_text}}
+    
+    Chỉ trả về JSON object, không có gì khác.
+
+  # Experience extraction - for detailed timeline
+  cv_extract_v3.default.cv_extract_experience: |
+    Extract work experience timeline from CV as strict JSON array.
+    Rules:
+    1. Preserve chronological order (most recent first)
+    2. Keep all dates in YYYY-MM-DD format or null
+    3. Include company name, job title, duration, description
+    4. Do NOT invent experience - only extract what exists
+    5. Combine multiple roles at same company
+    
+    Schema for each experience:
+    {{target_schema}}
+    
+    CV Text:
+    {{cv_text}}
+    
+    Return only JSON array.
+
+  # Skills extraction - for consolidated skills
+  cv_extract_v3.default.cv_extract_skills: |
+    Extract all skills from CV as a clean JSON array.
+    Rules:
+    1. Normalize skills (e.g., "python" and "Python" → "Python")
+    2. Remove duplicates
+    3. Include synonyms mentioned (e.g., "Spring Boot" and "Spring Framework" as separate skills)
+    4. Order by frequency/importance (most mentioned first)
+    5. Include both technical and soft skills
+    
+    CV Language: {{language}}
+    
+    CV Text:
+    {{cv_text}}
+    
+    Return only JSON array like: ["Python", "Java", "Project Management"]
+
+  # Summary for embedding - for semantic search
+  cv_extract_v3.default.cv_summarize_for_embedding: |
+    Create a concise 3-5 bullet point summary of this CV.
+    Purpose: Semantic search and candidate matching
+    
+    Rules:
+    1. Extract key highlights (role, experience level, main skills)
+    2. Use professional language
+    3. Focus on what makes this candidate stand out
+    4. Keep each bullet under 20 words
+    5. Only factual information from CV
+    
+    CV Language: {{language}}
+    
+    CV Text:
+    {{cv_text}}
+    
+    Format:
+    • Senior Backend Engineer with 5+ years experience in Java and microservices
+    • Expert in cloud technologies (AWS, Kubernetes) and CI/CD
+    • Led team of 8 developers at Startup
+    • Strong problem-solving and mentoring abilities
+
+  # Vietnamese experience extraction
+  cv_extract_v3.vi.cv_extract_experience: |
+    Trích xuất lịch sử công việc từ CV dưới dạng mảng JSON nghiêm ngặt.
+    Quy tắc:
+    1. Giữ nguyên thứ tự thời gian (gần đây nhất trước)
+    2. Định dạng ngày: YYYY-MM-DD hoặc null
+    3. Bao gồm tên công ty, chức danh, thời gian, mô tả
+    4. KHÔNG bịa đặt kinh nghiệm - chỉ trích xuất những gì tồn tại
+    
+    Schema:
+    {{target_schema}}
+    
+    Văn bản CV:
+    {{cv_text}}
+    
+    Chỉ trả về mảng JSON.
+
+  # Vietnamese skills extraction
+  cv_extract_v3.vi.cv_extract_skills: |
+    Trích xuất tất cả kỹ năng từ CV dưới dạng mảng JSON sạch sẽ.
+    Quy tắc:
+    1. Chuẩn hóa kỹ năng (VD: "python" và "Python" → "Python")
+    2. Loại bỏ trùng lặp
+    3. Sắp xếp theo tần suất/độ quan trọng
+    4. Bao gồm kỹ năng kỹ thuật và mềm
+    
+    Văn bản CV:
+    {{cv_text}}
+    
+    Chỉ trả về mảng JSON như: ["Python", "Java", "Quản lý dự án"]
+
+  # Vietnamese summary for embedding
+  cv_extract_v3.vi.cv_summarize_for_embedding: |
+    Tạo tóm tắt 3-5 điểm chính của CV này.
+    Mục đích: Tìm kiếm ngữ nghĩa và so khớp ứng viên
+    
+    Quy tắc:
+    1. Trích xuất những điểm nổi bật (vị trí, cấp độ kinh nghiệm, kỹ năng chính)
+    2. Sử dụng ngôn ngữ chuyên nghiệp
+    3. Tập trung vào điều làm ứng viên này nổi bật
+    4. Mỗi dòng dưới 20 từ
+    5. Chỉ thông tin thực tế từ CV
+    
+    Văn bản CV:
+    {{cv_text}}
+    
+    Định dạng:
+    • Kỹ sư Backend với 5+ năm kinh nghiệm Java và microservices
+    • Chuyên gia công nghệ đám mây (AWS, Kubernetes) và CI/CD
+    • Dẫn dắt đội 8 developer tại Startup

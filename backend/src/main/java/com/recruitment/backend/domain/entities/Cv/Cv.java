@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
@@ -43,4 +44,11 @@ public class Cv {
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime uploadedAt;
+
+    @UpdateTimestamp
+    private LocalDateTime lastUpdatedAt;
+
+    private Integer retryCount = 0;
+
+    private LocalDateTime lastRetryAt;
 }

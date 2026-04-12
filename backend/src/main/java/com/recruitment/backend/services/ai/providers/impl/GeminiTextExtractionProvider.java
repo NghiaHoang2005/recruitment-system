@@ -65,7 +65,7 @@ public class GeminiTextExtractionProvider implements TextExtractionProvider {
         try {
             String model = request.getModel();
             if (model == null || model.isBlank()) {
-                model = "gemini-1.5-flash"; // Free tier default (faster and free)
+                model = "gemini-1.5-flash";
             }
 
             String systemPrompt = "You are an expert CV parser. Extract information from the provided CV text " +

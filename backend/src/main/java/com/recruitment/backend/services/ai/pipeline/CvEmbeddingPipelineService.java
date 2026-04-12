@@ -12,6 +12,8 @@ import com.recruitment.backend.services.ai.model.EmbeddingRequest;
 import com.recruitment.backend.services.ai.model.EmbeddingResult;
 import com.recruitment.backend.services.ai.providers.EmbeddingProvider;
 import com.recruitment.backend.services.ai.providers.ProviderRegistry;
+import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class CvEmbeddingPipelineService {
 
     private static final String STEP_NAME = "EMBEDDING";
@@ -45,7 +48,7 @@ public class CvEmbeddingPipelineService {
         this.aiRunLoggingService = aiRunLoggingService;
         this.objectMapper = objectMapper;
     }
-
+    @Transactional
     public void embedAndStore(
             UUID cvId,
             String rawText,
@@ -56,87 +59,138 @@ public class CvEmbeddingPipelineService {
     ) {
         String requestId = cvId.toString();
         Cv cv = cvRepository.getReferenceById(cvId);
+        
+        log.debug("Starting embedding generation for CV: {} (language: {})", cvId, language);
+        
         cvEmbeddingRepository.deleteByCvId(cvId);
 
+        // Create embedding inputs from all 4 types
         List<EmbeddingInput> inputs = new ArrayList<>();
+        
+        // Type 1: RAW - text chunks (each chunk is a separate embedding)
         int chunkIndex = 0;
         for (String chunk : rawChunks) {
             inputs.add(new EmbeddingInput(EmbeddingType.RAW, chunk, chunkIndex++));
         }
+        log.debug("Added {} RAW embeddings (text chunks) for CV: {}", chunkIndex, cvId);
 
+        // Type 2: SUMMARY - professional summary
         String summary = extractSummary(parsedJson);
         if (!summary.isBlank()) {
             inputs.add(new EmbeddingInput(EmbeddingType.SUMMARY, summary, 0));
+            log.debug("Added SUMMARY embedding for CV: {} ({} chars)", cvId, summary.length());
         }
 
+        // Type 3: SKILLS - consolidated skills
         String skills = extractSkills(parsedJson);
         if (!skills.isBlank()) {
             inputs.add(new EmbeddingInput(EmbeddingType.SKILLS, skills, 0));
+            log.debug("Added SKILLS embedding for CV: {} ({} chars)", cvId, skills.length());
         }
 
+        // Type 4: EXPERIENCE - work experience
         String experience = extractExperience(parsedJson);
         if (!experience.isBlank()) {
             inputs.add(new EmbeddingInput(EmbeddingType.EXPERIENCE, experience, 0));
+            log.debug("Added EXPERIENCE embedding for CV: {} ({} chars)", cvId, experience.length());
         }
 
         if (inputs.isEmpty()) {
+            log.warn("No embedding inputs created for CV: {}", cvId);
             return;
         }
 
+        log.info("Embedding {} inputs for CV: {} using provider: {}", 
+                inputs.size(), cvId, providerRegistry.getEmbeddingProvider().providerName());
+
+        // Call embedding provider
         EmbeddingProvider provider = providerRegistry.getEmbeddingProvider();
         List<String> texts = inputs.stream().map(EmbeddingInput::text).toList();
         long start = System.currentTimeMillis();
 
-        // Use recommended dimensions based on provider and model
-        Integer effectiveDimensions = aiProperties.getEmbedding().getRecommendedDimensions();
-        
-        EmbeddingResult result = provider.embed(EmbeddingRequest.builder()
-                .texts(texts)
-                .model(aiProperties.getEmbedding().getModel())
-                .dimensions(effectiveDimensions)
-                .timeoutMs(aiProperties.getEmbedding().getTimeoutMs())
-                .build());
+        try {
+            // Use recommended dimensions based on provider
+            Integer effectiveDimensions = aiProperties.getEmbedding().getRecommendedDimensions();
+            
+            log.debug("Calling embedding provider with {} texts, dimensions: {}", 
+                    texts.size(), effectiveDimensions);
 
-        long latency = System.currentTimeMillis() - start;
-        List<float[]> vectors = result.getVectors();
-        String promptVersion = aiProperties.getPrompts().getActiveVersion();
+            EmbeddingResult result = provider.embed(EmbeddingRequest.builder()
+                    .texts(texts)
+                    .model(aiProperties.getEmbedding().getModel())
+                    .dimensions(effectiveDimensions)
+                    .timeoutMs(aiProperties.getEmbedding().getTimeoutMs())
+                    .build());
 
-        for (int i = 0; i < inputs.size(); i++) {
-            EmbeddingInput input = inputs.get(i);
-            CvEmbedding embedding = CvEmbedding.builder()
-                    .cv(cv)
-                    .type(input.type())
-                    .content(input.text())
-                    .model(result.getModelName())
-                    .promptVersion(promptVersion)
-                    .dimensions(result.getDimensions())
-                    .language(language)
-                    .chunkIndex(input.chunkIndex())
-                    .tokenCount(approxTokenCount(input.text()))
-                    .vector(vectors.get(i))
-                    .build();
-            cvEmbeddingRepository.save(embedding);
+            long latency = System.currentTimeMillis() - start;
+            List<float[]> vectors = result.getVectors();
+            String promptVersion = aiProperties.getPrompts().getActiveVersion();
+
+            log.info("✓ Embedding generation succeeded for CV: {} - {} vectors in {}ms", 
+                    cvId, vectors.size(), latency);
+
+            // Store all embeddings
+            for (int i = 0; i < inputs.size(); i++) {
+                EmbeddingInput input = inputs.get(i);
+                CvEmbedding embedding = CvEmbedding.builder()
+                        .cv(cv)
+                        .type(input.type())
+                        .content(input.text())
+                        .model(result.getModelName())
+                        .promptVersion(promptVersion)
+                        .dimensions(result.getDimensions())
+                        .language(language)
+                        .chunkIndex(input.chunkIndex())
+                        .tokenCount(approxTokenCount(input.text()))
+                        .vector(vectors.get(i))
+                        .build();
+                cvEmbeddingRepository.save(embedding);
+                log.debug("Stored {} embedding (chunk {}, {} tokens)", 
+                        input.type(), input.chunkIndex(), embedding.getTokenCount());
+            }
+
+            log.info("✓ Stored {} embeddings for CV: {}", vectors.size(), cvId);
+
+            // Log success metrics
+            aiRunLoggingService.logSuccess(
+                    cvId,
+                    requestId,
+                    STEP_NAME,
+                    result.getProvider(),
+                    result.getModelName(),
+                    result.getModelVersion(),
+                    promptVersion,
+                    result.getUsage().getInputTokens(),
+                    result.getUsage().getOutputTokens(),
+                    latency
+            );
+        } catch (Exception ex) {
+            long latency = System.currentTimeMillis() - start;
+            log.error("✗ Embedding generation failed for CV: {} - {}", cvId, ex.getMessage(), ex);
+            
+            aiRunLoggingService.logFailure(
+                    cvId,
+                    requestId,
+                    STEP_NAME,
+                    provider.providerName(),
+                    aiProperties.getEmbedding().getModel(),
+                    null,
+                    aiProperties.getPrompts().getActiveVersion(),
+                    ex.getMessage(),
+                    latency
+            );
+            throw ex;
         }
-
-        aiRunLoggingService.logSuccess(
-                cvId,
-                requestId,
-                STEP_NAME,
-                result.getProvider(),
-                result.getModelName(),
-                result.getModelVersion(),
-                promptVersion,
-                result.getUsage().getInputTokens(),
-                result.getUsage().getOutputTokens(),
-                latency
-        );
     }
 
     private String extractSummary(String parsedJson) {
         try {
             JsonNode root = objectMapper.readTree(parsedJson);
-            return root.path("summary").asText("");
-        } catch (Exception ignored) {
+            String summary = root.path("summary").asText("");
+            log.debug("Extracted summary: {} chars", summary.length());
+            return summary;
+        } catch (Exception e) {
+            log.warn("Failed to extract summary: {}", e.getMessage());
             return "";
         }
     }
@@ -146,10 +200,16 @@ public class CvEmbeddingPipelineService {
             JsonNode root = objectMapper.readTree(parsedJson);
             List<String> skills = new ArrayList<>();
             for (JsonNode node : root.path("extracted_skills")) {
-                skills.add(node.asText());
+                String skill = node.asText();
+                if (!skill.isBlank()) {
+                    skills.add(skill);
+                }
             }
-            return String.join(", ", skills);
-        } catch (Exception ignored) {
+            String result = String.join(", ", skills);
+            log.debug("Extracted {} skills: {} chars", skills.size(), result.length());
+            return result;
+        } catch (Exception e) {
+            log.warn("Failed to extract skills: {}", e.getMessage());
             return "";
         }
     }
@@ -158,15 +218,24 @@ public class CvEmbeddingPipelineService {
         try {
             JsonNode root = objectMapper.readTree(parsedJson);
             List<String> lines = new ArrayList<>();
+            int count = 0;
             for (JsonNode exp : root.path("experiences")) {
-                String line = String.join(" | ",
-                        exp.path("company").asText(""),
-                        exp.path("title").asText(""),
-                        exp.path("description").asText(""));
-                lines.add(line);
+                String company = exp.path("company").asText("");
+                String title = exp.path("title").asText("");
+                String description = exp.path("description").asText("");
+                
+                // Format: "Company | Title | Description"
+                if (!company.isBlank() || !title.isBlank() || !description.isBlank()) {
+                    String line = String.join(" | ", company, title, description);
+                    lines.add(line);
+                    count++;
+                }
             }
-            return String.join("\n", lines);
-        } catch (Exception ignored) {
+            String result = String.join("\n", lines);
+            log.debug("Extracted {} experiences: {} chars", count, result.length());
+            return result;
+        } catch (Exception e) {
+            log.warn("Failed to extract experience: {}", e.getMessage());
             return "";
         }
     }

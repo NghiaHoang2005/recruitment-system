@@ -54,34 +54,4 @@ ai:
     max-characters-per-input: ${AI_EMBEDDING_MAX_CHARACTERS_PER_INPUT:8000}
   prompts:
     active-version: ${AI_PROMPT_VERSION:cv_extract_v3}
-    templates:
-      cv_extract_v3.default.cv_extract_profile: |
-        You are a strict CV parser.
-        Return valid JSON only. No markdown, no prose.
-        Language: {{language}}
-        Required schema:
-        {{target_schema}}
 
-        CV text:
-        {{cv_text}}
-
-        If a field is unknown, use null or an empty array.
-      cv_extract_v3.default.cv_extract_experience: |
-        Extract only work experience timeline as strict JSON.
-        Keep chronology and avoid hallucination.
-        Schema:
-        {{target_schema}}
-        CV text:
-        {{cv_text}}
-      cv_extract_v3.default.cv_extract_skills: |
-        Extract skills as strict JSON array.
-        Include synonyms and normalize duplicates.
-        CV language: {{language}}
-        CV text:
-        {{cv_text}}
-      cv_extract_v3.default.cv_summarize_for_embedding: |
-        Summarize this CV in 5 concise bullets for semantic retrieval.
-        Keep only factual information.
-        CV language: {{language}}
-        CV text:
-        {{cv_text}}

@@ -1,0 +1,244 @@
+# JSON Schema Definitions for CV Extraction
+# Used by AI models to structure their output
+
+schemas:
+  # Main CV profile schema - contains all extracted fields
+  cv_extract_v3.cv_profile:
+    type: object
+    description: Complete CV profile extracted from resume
+    required:
+      - full_name
+      - extracted_skills
+    properties:
+      full_name:
+        type: string
+        description: Candidate's full name
+        nullable: true
+        example: "John Doe"
+      
+      email:
+        type: string
+        description: Candidate's email address
+        nullable: true
+        format: email
+        example: "john@example.com"
+      
+      phone_number:
+        type: string
+        description: Candidate's phone number
+        nullable: true
+        example: "+1-555-123-4567"
+      
+      summary:
+        type: string
+        description: Professional summary or objective from CV
+        nullable: true
+        example: "Senior software engineer with 5+ years experience"
+      
+      extracted_skills:
+        type: array
+        description: List of skills extracted from CV
+        items:
+          type: string
+        example: ["Java", "Python", "AWS", "Docker"]
+      
+      experiences:
+        type: array
+        description: Work experience timeline
+        items:
+          type: object
+          properties:
+            company:
+              type: string
+              nullable: true
+              description: Company name
+              example: "Tech Corp"
+            
+            title:
+              type: string
+              nullable: true
+              description: Job title
+              example: "Senior Engineer"
+            
+            start_date:
+              type: string
+              nullable: true
+              description: Start date in YYYY-MM-DD format
+              example: "2020-01-15"
+            
+            end_date:
+              type: string
+              nullable: true
+              description: End date in YYYY-MM-DD format, null if currently working
+              example: "2023-12-31"
+            
+            description:
+              type: string
+              nullable: true
+              description: Job description and responsibilities
+              example: "Led development team of 5 engineers"
+      
+      education:
+        type: array
+        description: Educational background
+        items:
+          type: object
+          properties:
+            school:
+              type: string
+              nullable: true
+              description: School/University name
+              example: "MIT"
+            
+            degree:
+              type: string
+              nullable: true
+              description: Degree obtained
+              example: "Bachelor of Science in Computer Science"
+            
+            start_date:
+              type: string
+              nullable: true
+              description: Start date in YYYY-MM-DD format
+              example: "2015-09-01"
+            
+            end_date:
+              type: string
+              nullable: true
+              description: End date / graduation date in YYYY-MM-DD format
+              example: "2019-05-31"
+
+  # Experience array schema - for detailed extraction
+  cv_extract_v3.experiences:
+    type: array
+    description: Array of work experiences
+    items:
+      type: object
+      properties:
+        company:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        start_date:
+          type: string
+          nullable: true
+        end_date:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+
+  # Skills array schema - for normalized skills
+  cv_extract_v3.skills:
+    type: array
+    description: Normalized and deduplicated skills list
+    items:
+      type: string
+    example: ["Python", "Java", "JavaScript", "AWS", "Docker", "PostgreSQL"]
+
+  # Summary schema - for embedding input
+  cv_extract_v3.summary:
+    type: string
+    description: Professional summary for semantic search
+    example: |
+      • Senior Backend Engineer with 5+ years Java and microservices experience
+      • Expert in cloud (AWS, Kubernetes) and CI/CD pipelines
+      • Led team of 8 developers at startup, shipped 3 major products
+      • Strong system design and mentoring skills
+
+# JSON representations for AI consumption
+json_schemas:
+  # Compact JSON schema for profile extraction
+  cv_extract_v3.cv_profile.json: |
+    {
+      "full_name": "string|null",
+      "email": "string|null",
+      "phone_number": "string|null",
+      "summary": "string|null",
+      "extracted_skills": ["string"],
+      "experiences": [
+        {
+          "company": "string|null",
+          "title": "string|null",
+          "start_date": "string|null (YYYY-MM-DD)",
+          "end_date": "string|null (YYYY-MM-DD)",
+          "description": "string|null"
+        }
+      ],
+      "education": [
+        {
+          "school": "string|null",
+          "degree": "string|null",
+          "start_date": "string|null (YYYY-MM-DD)",
+          "end_date": "string|null (YYYY-MM-DD)"
+        }
+      ]
+    }
+
+  # Experience array schema
+  cv_extract_v3.experiences.json: |
+    [
+      {
+        "company": "string|null",
+        "title": "string|null",
+        "start_date": "string|null (YYYY-MM-DD)",
+        "end_date": "string|null (YYYY-MM-DD)",
+        "description": "string|null"
+      }
+    ]
+
+  # Skills array schema
+  cv_extract_v3.skills.json: |
+    ["Python", "Java", "AWS", "Docker"]
+
+  # Summary schema
+  cv_extract_v3.summary.json: |
+    "• Senior Backend Engineer with 5+ years Java experience
+    • Expert in cloud technologies (AWS, Kubernetes)
+    • Led team of 8 developers
+    • Strong system design and mentoring"
+
+# Error recovery prompts - used when AI output needs repair
+repair_prompts:
+  # Generic JSON repair prompt
+  repair_json: |
+    The previous response was not valid JSON. 
+    Please return ONLY valid JSON matching the schema below, nothing else.
+    No markdown, no explanations, just JSON.
+    
+    Schema: {{target_schema}}
+    
+    Return the JSON object:
+  
+  # JSON array repair
+  repair_json_array: |
+    The previous response was not valid JSON array.
+    Return ONLY a valid JSON array with the same data, nothing else.
+    
+    {{target_schema}}
+
+# Validation rules for extracted data
+validation:
+  # Email validation regex
+  email_regex: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+  
+  # Phone number validation - allow various formats
+  phone_regex: "^[\\d\\s()+-]{10,}$"
+  
+  # Date validation format
+  date_format: "YYYY-MM-DD"
+  
+  # Skill name length constraints
+  skill_min_length: 1
+  skill_max_length: 100
+  
+  # Company/School name constraints
+  name_min_length: 1
+  name_max_length: 200
+  
+  # Summary/Description length
+  description_min_length: 5
+  description_max_length: 5000

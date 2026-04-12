@@ -1,8 +1,8 @@
 package com.recruitment.backend.services;
 
 import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
 import com.recruitment.backend.domain.dtos.Cv.CvUploadRequest;
+import com.recruitment.backend.domain.dtos.Cv.ExtractionStatusResponse;
 import com.recruitment.backend.domain.dtos.CvResponse;
 import com.recruitment.backend.domain.entities.Candidate.Candidate;
 import com.recruitment.backend.domain.entities.Cv.Cv;
@@ -15,10 +15,11 @@ import com.recruitment.backend.services.storage.FirebaseStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -124,5 +125,79 @@ public class CvService {
             log.error("Lỗi khi tạo Presigned URL từ Cloudinary cho file: {}", cv.getFileUrl(), e);
             throw new AppException(ErrorCode.PRESIGNED_URL_FAILED);
         }
+    }
+
+    @Transactional
+    public void retryCvExtraction(UUID currentUserId, UUID cvId) {
+        log.info("Starting CV retry extraction for cvId: {} by user: {}", cvId, currentUserId);
+
+        Cv cv = cvRepository.findById(cvId)
+                .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
+
+        if (!cv.getCandidate().getUserId().equals(currentUserId)) {
+            log.warn("Unauthorized retry attempt for cvId: {} by user: {}", cvId, currentUserId);
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        // Only allow reextraction when status is FAILED
+        if (!CvStatus.FAILED.equals(cv.getAiStatus())) {
+            log.error("Cannot retry extraction - CV {} status is {}, must be FAILED", cvId, cv.getAiStatus());
+            throw new AppException(ErrorCode.CV_PROCESSING_FAILED);
+        }
+
+        if (cv.getFileUrl() == null || cv.getFileUrl().isBlank()) {
+            log.error("CV {} has no file URL", cvId);
+            throw new AppException(ErrorCode.CV_NOT_FOUND);
+        }
+
+        Integer currentRetryCount = (cv.getRetryCount() != null ? cv.getRetryCount() : 0);
+        cv.setRetryCount(currentRetryCount + 1);
+        cv.setLastRetryAt(LocalDateTime.now());
+
+        cv.setAiStatus(CvStatus.PENDING);
+        cv.setRawText(null);
+        cv.setParsedData(null);
+        cvRepository.save(cv);
+        log.debug("Cleared previous extraction data for CV: {}, retry count: {}", cvId, cv.getRetryCount());
+
+        try {
+            String signedUrl = firebaseStorageService.getPresignedUrl(cv.getFileUrl());
+            log.debug("Generated presigned URL for CV retry: {}", cvId);
+
+            asyncCvProcessor.processCvInBackground(cvId, signedUrl);
+            log.info("✓ CV retry extraction triggered for cvId: {}, attempt #{}", cvId, cv.getRetryCount());
+
+        } catch (Exception e) {
+            log.error("Failed to generate presigned URL for CV retry: {}", cvId, e);
+            cv.setAiStatus(CvStatus.FAILED);
+            cvRepository.save(cv);
+            throw new AppException(ErrorCode.PRESIGNED_URL_FAILED);
+        }
+    }
+
+    public ExtractionStatusResponse getExtractionStatus(UUID currentUserId, UUID cvId) {
+        log.debug("Getting extraction status for cvId: {} by user: {}", cvId, currentUserId);
+
+        Cv cv = cvRepository.findById(cvId)
+                .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
+
+        if (!cv.getCandidate().getUserId().equals(currentUserId)) {
+            log.warn("Unauthorized status check attempt for cvId: {} by user: {}", cvId, currentUserId);
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        ExtractionStatusResponse response = ExtractionStatusResponse.builder()
+                .cvId(cv.getId())
+                .status(cv.getAiStatus())
+                .build();
+
+        if (CvStatus.COMPLETED.equals(cv.getAiStatus())) {
+            response.setParsedData(cv.getParsedData());
+        } else if (CvStatus.FAILED.equals(cv.getAiStatus())) {
+            // Could add error message if we stored it in the future
+            response.setErrorMessage("CV extraction failed");
+        }
+
+        return response;
     }
 }
