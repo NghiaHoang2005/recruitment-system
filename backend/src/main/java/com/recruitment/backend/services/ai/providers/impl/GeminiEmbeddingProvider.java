@@ -39,7 +39,7 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
     private final ObjectMapper objectMapper;
     private final String apiKey;
     private static final String GEMINI_EMBEDDING_API_URL = 
-            "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent";
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent";
 
     public GeminiEmbeddingProvider(
             RestTemplate restTemplate,

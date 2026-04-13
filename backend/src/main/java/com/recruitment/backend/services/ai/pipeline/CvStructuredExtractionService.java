@@ -28,6 +28,7 @@ public class CvStructuredExtractionService {
     private final AiProperties aiProperties;
     private final AiRunLoggingService aiRunLoggingService;
     private final ObjectMapper objectMapper;
+    private final JsonCleanerService jsonCleanerService;
 
     public CvStructuredExtractionService(
             ProviderRegistry providerRegistry,
@@ -35,7 +36,8 @@ public class CvStructuredExtractionService {
             AiConfigLoader aiConfigLoader,
             AiProperties aiProperties,
             AiRunLoggingService aiRunLoggingService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            JsonCleanerService jsonCleanerService
     ) {
         this.providerRegistry = providerRegistry;
         this.promptTemplateProvider = promptTemplateProvider;
@@ -43,6 +45,7 @@ public class CvStructuredExtractionService {
         this.aiProperties = aiProperties;
         this.aiRunLoggingService = aiRunLoggingService;
         this.objectMapper = objectMapper;
+        this.jsonCleanerService = jsonCleanerService;
     }
     
         public String extract(UUID cvId, String normalizedText, String language) {
@@ -78,17 +81,31 @@ public class CvStructuredExtractionService {
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 long start = System.currentTimeMillis();
                 try {
-                    log.debug("Extraction attempt {}/{} for CV: {}", attempt, maxAttempts, cvId);
-                    
-                    StructuredExtractionResult result = provider.extractStructured(request);
-                    String json = ensureValidJsonOrRepair(provider, request, result.getJson(), attempt, maxAttempts);
-    
-                    long latency = System.currentTimeMillis() - start;
-                    log.info("✓ Structured extraction succeeded for CV: {} in {}ms (attempt {}/{})", 
-                            cvId, latency, attempt, maxAttempts);
-                    
-                    aiRunLoggingService.logSuccess(
-                            cvId,
+                     log.debug("Extraction attempt {}/{} for CV: {}", attempt, maxAttempts, cvId);
+                     
+                     StructuredExtractionResult result = provider.extractStructured(request);
+                      String rawJson = result.getJson();
+                      
+                      // Log raw response info
+                      log.info("Raw JSON response length: {} chars", rawJson.length());
+                      if (rawJson.length() > 500) {
+                          log.debug("Raw JSON (first 500 chars): {}", rawJson.substring(0, 500));
+                      } else {
+                          log.debug("Raw JSON: {}", rawJson);
+                      }
+                      
+                      String cleanedJson = jsonCleanerService.cleanJson(rawJson);
+                      log.info("Cleaned JSON length: {} chars", cleanedJson.length());
+                      
+                      String json = ensureValidJsonOrRepair(provider, request, cleanedJson, attempt, maxAttempts);
+      
+                      long latency = System.currentTimeMillis() - start;
+                      log.info("✓ Structured extraction succeeded for CV: {} in {}ms (attempt {}/{})", 
+                              cvId, latency, attempt, maxAttempts);
+                      log.info("Final JSON length: {} chars", json.length());
+                     
+                     aiRunLoggingService.logSuccess(
+                             cvId,
                             requestId,
                             STEP_NAME,
                             result.getProvider(),
@@ -133,58 +150,76 @@ public class CvStructuredExtractionService {
         }
     
         private String ensureValidJsonOrRepair(
-                TextExtractionProvider provider,
-                StructuredExtractionRequest request,
-                String json,
-                int attempt,
-                int maxAttempts
-        ) {
-            if (isValidJson(json)) {
-                log.debug("JSON validation passed");
-                return json;
-            }
+                 TextExtractionProvider provider,
+                 StructuredExtractionRequest request,
+                 String json,
+                 int attempt,
+                 int maxAttempts
+         ) {
+             if (isValidJson(json)) {
+                 log.debug("JSON validation passed");
+                 return json;
+             }
+     
+             log.warn("Invalid JSON detected, attempting repair");
+             log.warn("Received invalid response: {}", json);
+     
+             if (attempt >= maxAttempts) {
+                 log.error("Invalid JSON and no more retry attempts left");
+                 throw new IllegalStateException("Invalid JSON and no more retry attempts");
+             }
+     
+             StructuredExtractionRequest repairRequest = StructuredExtractionRequest.builder()
+                     .text(request.getText())
+                     .prompt(request.getPrompt() + "\n\n[IMPORTANT] Your previous response was invalid JSON. "
+                             + "Return ONLY valid JSON matching the schema, nothing else. No markdown, no explanations.")
+                     .schema(request.getSchema())
+                     .model(request.getModel())
+                     .temperature(Math.min(request.getTemperature(), 0.1))  // Lower temperature for repair
+                     .maxTokens(request.getMaxTokens())
+                     .timeoutMs(request.getTimeoutMs())
+                     .build();
+     
+             log.debug("Attempting JSON repair with lower temperature (0.1)");
+             StructuredExtractionResult repaired = provider.extractStructured(repairRequest);
+             String repairedJson = repaired.getJson();
+             
+             log.info("Repaired response: {}", repairedJson);
+             
+             if (!isValidJson(repairedJson)) {
+                 log.error("Model output is still not valid JSON even after repair attempt");
+                 throw new IllegalStateException("Model output is not valid JSON even after repair attempt");
+             }
+             
+             log.info("JSON repair successful!");
+             return repairedJson;
+         }
     
-            log.warn("Invalid JSON detected, attempting repair");
-    
-            // Only attempt repair if we have retries left
-            if (attempt >= maxAttempts) {
-                throw new IllegalStateException("Invalid JSON and no more retry attempts");
-            }
-    
-            StructuredExtractionRequest repairRequest = StructuredExtractionRequest.builder()
-                    .text(request.getText())
-                    .prompt(request.getPrompt() + "\n\n[IMPORTANT] Your previous response was invalid JSON. "
-                            + "Return ONLY valid JSON matching the schema, nothing else. No markdown, no explanations.")
-                    .schema(request.getSchema())
-                    .model(request.getModel())
-                    .temperature(Math.min(request.getTemperature(), 0.1))  // Lower temperature for repair
-                    .maxTokens(request.getMaxTokens())
-                    .timeoutMs(request.getTimeoutMs())
-                    .build();
-    
-            log.debug("Attempting JSON repair with lower temperature");
-            StructuredExtractionResult repaired = provider.extractStructured(repairRequest);
-            
-            if (!isValidJson(repaired.getJson())) {
-                throw new IllegalStateException("Model output is not valid JSON even after repair attempt");
-            }
-            
-            log.info("✓ JSON repair successful");
-            return repaired.getJson();
-        }
-    
-        private boolean isValidJson(String json) {
-            if (json == null || json.isBlank()) {
-                return false;
-            }
-            try {
-                objectMapper.readTree(json);
-                return true;
-            } catch (Exception e) {
-                log.debug("JSON validation failed: {}", e.getMessage());
-                return false;
-            }
-        }
+         private boolean isValidJson(String json) {
+              if (json == null || json.isBlank()) {
+                  log.error("JSON is null or blank!");
+                  return false;
+              }
+              
+              String trimmed = json.trim();
+              
+              // Check if it looks like JSON (starts with { and ends with })
+              if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+                  log.error("JSON does not start with {{ or end with }}: {}",
+                      trimmed.substring(0, Math.min(50, trimmed.length())));
+                  return false;
+              }
+              
+              try {
+                  objectMapper.readTree(trimmed);
+                  log.debug("✓ JSON validation passed");
+                  return true;
+              } catch (Exception e) {
+                  log.error("JSON validation failed: {}", e.getMessage());
+                  log.debug("Raw JSON: {}", trimmed.substring(0, Math.min(100, trimmed.length())));
+                  return false;
+              }
+          }
     
         private String loadTargetSchema(String version) {
             // Load JSON schema from configuration

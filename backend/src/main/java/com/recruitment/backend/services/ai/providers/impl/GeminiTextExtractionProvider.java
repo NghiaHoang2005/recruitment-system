@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 @Component
 @Slf4j
@@ -37,16 +38,19 @@ public class GeminiTextExtractionProvider implements TextExtractionProvider {
     private final AiProperties aiProperties;
     private final ObjectMapper objectMapper;
     private final String apiKey;
-    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent";
+    private final RetryStrategy retryStrategy;
+    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/{model}:generateContent";
 
     public GeminiTextExtractionProvider(
             RestTemplate restTemplate,
             AiProperties aiProperties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            RetryStrategy retryStrategy
     ) {
         this.restTemplate = restTemplate;
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
+        this.retryStrategy = retryStrategy;
         this.apiKey = System.getenv("GEMINI_API_KEY");
         
         if (apiKey == null || apiKey.isBlank()) {
@@ -62,36 +66,79 @@ public class GeminiTextExtractionProvider implements TextExtractionProvider {
     @Override
     public StructuredExtractionResult extractStructured(StructuredExtractionRequest request) {
         long startTime = System.currentTimeMillis();
+        
+        String primaryModel = request.getModel();
+        if (primaryModel == null || primaryModel.isBlank()) {
+            primaryModel = aiProperties.getExtraction().getModel();
+        }
+        
+        String fallbackModel = aiProperties.getExtraction().getFallbackModel();
+        final String primary = primaryModel;
+        final String fallback = fallbackModel;
+        
+        String userContent = request.getPrompt();
+        Map<String, Object> requestBody = buildGeminiRequest(userContent, request);
+        
         try {
-            String model = request.getModel();
-            if (model == null || model.isBlank()) {
-                model = "gemini-1.5-flash";
-            }
+            log.info("🔄 Starting CV extraction with retry strategy. Primary: {}, Fallback: {}", primary, fallback);
+            log.debug("Retry config: {}", retryStrategy.getRetryConfig());
+            
+            // Primary operation: Call with primary model
+            Supplier<StructuredExtractionResult> primaryOperation = () -> 
+                callGeminiApi(primary, requestBody, startTime);
+            
+            // Fallback operation: Call with fallback model
+            Supplier<StructuredExtractionResult> fallbackOperation = () -> {
+                log.info("Attempting extraction with fallback model: {}", fallback);
+                return callGeminiApi(fallback, requestBody, startTime);
+            };
+            
+            // Execute with retry logic
+            return retryStrategy.executeWithRetry(
+                "CV Extraction (" + primary + ")",
+                primaryOperation,
+                fallbackOperation
+            );
+            
+        } catch (Exception e) {
+            long latency = System.currentTimeMillis() - startTime;
+            log.error("Gemini extraction completely failed after {}ms: {}", latency, e.getMessage(), e);
+            throw new IllegalStateException("Gemini text extraction failed: " + e.getMessage(), e);
+        }
+    }
 
-            String systemPrompt = "You are an expert CV parser. Extract information from the provided CV text " +
-                    "and return ONLY valid JSON matching the specified schema. " +
-                    "Do not include any markdown, commentary, or additional text. " +
-                    "Output must be parseable JSON.";
-
-            String userContent = "Schema:\n" + request.getSchema() + "\n\nCV text:\n" + request.getText();
-
-            Map<String, Object> requestBody = buildGeminiRequest(systemPrompt, userContent, request);
-
-            String apiUrl = GEMINI_API_URL.replace("{model}", model) + "?key=" + apiKey;
+    private StructuredExtractionResult callGeminiApi(
+            String model, 
+            Map<String, Object> requestBody, 
+            long startTime) {
+        try {
+            // Format model name with 'models/' prefix for the API
+            String modelPath = model.startsWith("models/") ? model : "models/" + model;
+            String apiUrl = GEMINI_API_URL.replace("{model}", modelPath) + "?key=" + apiKey;
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
+            log.debug("Calling Gemini API with model: {}", modelPath);
             String responseJson = restTemplate.postForObject(apiUrl, entity, String.class);
             long latency = System.currentTimeMillis() - startTime;
+            
+            // Log raw API response for debugging
+            log.debug("🔵 Gemini API raw response: {}", responseJson);
 
             JsonNode response = objectMapper.readTree(responseJson);
             
             if (response.has("error")) {
                 String errorMsg = response.path("error").path("message").asText("Unknown error");
-                log.error("Gemini API error: {}", errorMsg);
+                int errorCode = response.path("error").path("code").asInt(0);
+                log.error("Gemini API error (code={}): {}", errorCode, errorMsg);
+                
+                // Treat 5xx-like errors as retriable
+                if (errorCode >= 500 && errorCode < 600) {
+                    throw new IllegalStateException("Gemini API 5xx error (code=" + errorCode + "): " + errorMsg);
+                }
                 throw new IllegalStateException("Gemini API error: " + errorMsg);
             }
 
@@ -102,11 +149,14 @@ public class GeminiTextExtractionProvider implements TextExtractionProvider {
                     .path(0)
                     .path("text")
                     .asText();
+            
+            // Log extracted JSON from AI model
+            log.info("Gemini AI extracted JSON: {}", extractedJson);
 
             int inputTokens = response.path("usageMetadata").path("promptTokenCount").asInt(0);
             int outputTokens = response.path("usageMetadata").path("candidatesTokenCount").asInt(0);
 
-            log.info("Gemini extraction successful. model={}, inputTokens={}, outputTokens={}, latencyMs={}",
+            log.info("✓ Gemini extraction successful. model={}, inputTokens={}, outputTokens={}, latencyMs={}",
                     model, inputTokens, outputTokens, latency);
 
             return StructuredExtractionResult.builder()
@@ -120,15 +170,15 @@ public class GeminiTextExtractionProvider implements TextExtractionProvider {
                             .latencyMs(latency)
                             .build())
                     .build();
-
+                    
         } catch (Exception e) {
             long latency = System.currentTimeMillis() - startTime;
-            log.error("Gemini extraction failed after {}ms: {}", latency, e.getMessage(), e);
-            throw new IllegalStateException("Gemini text extraction failed: " + e.getMessage(), e);
+            log.error("Gemini API call failed after {}ms with model {}: {}", latency, model, e.getMessage());
+            throw new IllegalStateException("Gemini API call failed with model " + model + ": " + e.getMessage(), e);
         }
     }
 
-    private Map<String, Object> buildGeminiRequest(String systemPrompt, String userContent, StructuredExtractionRequest request) {
+    private Map<String, Object> buildGeminiRequest(String userContent, StructuredExtractionRequest request) {
         Map<String, Object> body = new HashMap<>();
         
         Map<String, Object> generationConfig = new HashMap<>();
@@ -138,11 +188,10 @@ public class GeminiTextExtractionProvider implements TextExtractionProvider {
         generationConfig.put("topK", 40);
         body.put("generationConfig", generationConfig);
 
-        // Build messages with system prompt and user content
+        // Build messages with user content containing the full prompt with context and schema
         List<Map<String, Object>> contents = Arrays.asList(
-            // System instruction (Gemini uses it differently)
             Map.of("role", "user", "parts", Arrays.asList(
-                Map.of("text", systemPrompt + "\n\n" + userContent)
+                Map.of("text", userContent)
             ))
         );
         body.put("contents", contents);

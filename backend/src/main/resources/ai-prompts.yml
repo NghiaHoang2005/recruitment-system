@@ -3,11 +3,14 @@ prompts:
   cv_extract_v3.default.cv_extract_profile: |
     You are a strict CV parser specialized in extracting structured information from resumes.
     Follow these rules EXACTLY:
-    1. Return ONLY valid JSON, no markdown, no prose, no explanations
-    2. If you cannot find a field, use null (not empty string, not 0)
-    3. For arrays (skills, experiences), use empty array [] if not found
-    4. Do NOT invent or hallucinate information
-    5. Keep dates in format: YYYY-MM-DD or leave null
+    1. Return ONLY valid JSON, NO markdown code fences, no prose, no explanations
+    2. Do NOT wrap JSON in ```json``` or ``` ``` code fences
+    3. Do NOT use <thinking>, <thought>, <reason> or any XML-like tags
+    4. Start with { and end with } - nothing else
+    5. If you cannot find a field, use null (not empty string, not 0)
+    6. For arrays (skills, experiences), use empty array [] if not found
+    7. Do NOT invent or hallucinate information
+    8. Keep dates in format: YYYY-MM-DD or leave null
     
     Target Language: {{language}}
     Required JSON Schema:
@@ -16,17 +19,20 @@ prompts:
     CV Text to Extract From:
     {{cv_text}}
     
-    Return ONLY the JSON object, nothing else.
+    Return ONLY the JSON object starting with { and ending with }, nothing else. NO markdown. NO XML tags.
 
   # Vietnamese profile extraction
   cv_extract_v3.vi.cv_extract_profile: |
     Bạn là một trình phân tích CV chuyên nghiệp, chuyên trích xuất thông tin từ CV tiếng Việt.
     Tuân thủ các quy tắc sau CHÍNH XÁC:
-    1. Chỉ trả về JSON hợp lệ, không markdown, không giải thích thêm
-    2. Nếu không tìm thấy trường, sử dụng null (không phải chuỗi rỗng)
-    3. Với mảng (skills, experiences), sử dụng [] nếu không tìm thấy
-    4. KHÔNG bịa đặt hoặc đoán thông tin
-    5. Giữ nguyên định dạng ngày: YYYY-MM-DD hoặc null
+    1. Chỉ trả về JSON hợp lệ, KHÔNG markdown code fences, không giải thích thêm
+    2. KHÔNG bao lấy JSON trong ```json``` hoặc ``` ``` code fences
+    3. KHÔNG sử dụng <thinking>, <thought>, <reason> hoặc bất kỳ XML tag nào
+    4. Bắt đầu với { và kết thúc với } - không có gì khác
+    5. Nếu không tìm thấy trường, sử dụng null (không phải chuỗi rỗng)
+    6. Với mảng (skills, experiences), sử dụng [] nếu không tìm thấy
+    7. KHÔNG bịa đặt hoặc đoán thông tin
+    8. Giữ nguyên định dạng ngày: YYYY-MM-DD hoặc null
     
     Schema JSON Bắt Buộc:
     {{target_schema}}
@@ -34,7 +40,7 @@ prompts:
     Văn bản CV cần trích xuất:
     {{cv_text}}
     
-    Chỉ trả về JSON object, không có gì khác.
+    Chỉ trả về JSON object bắt đầu với { và kết thúc với }, không có gì khác. KHÔNG markdown. KHÔNG XML tag.
 
   # Experience extraction - for detailed timeline
   cv_extract_v3.default.cv_extract_experience: |

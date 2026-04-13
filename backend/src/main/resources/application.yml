@@ -34,17 +34,17 @@ cloudinary:
 
 ai:
   extraction:
-    active-provider: ${AI_EXTRACTION_PROVIDER:mock}
-    model: ${AI_EXTRACTION_MODEL:gemini-1.5-flash}
+    active-provider: ${AI_EXTRACTION_PROVIDER:gemini}
+    model: ${AI_EXTRACTION_MODEL:gemini-flash-latest}
     prompt-version: ${AI_EXTRACTION_PROMPT_VERSION:cv_extract_v3}
-    fallback-model: ${AI_EXTRACTION_FALLBACK_MODEL:gemini-1.5-pro}
+    fallback-model: ${AI_EXTRACTION_FALLBACK_MODEL:gemini-flash-lite-latest}
     temperature: ${AI_EXTRACTION_TEMPERATURE:0.1}
-    max-tokens: ${AI_EXTRACTION_MAX_TOKENS:2000}
+    max-tokens: ${AI_EXTRACTION_MAX_TOKENS:4096}
     retries: ${AI_EXTRACTION_RETRIES:2}
     timeout-ms: ${AI_EXTRACTION_TIMEOUT_MS:20000}
   embedding:
-    active-provider: ${AI_EMBEDDING_PROVIDER:mock}
-    model: ${AI_EMBEDDING_MODEL:embedding-001}
+    active-provider: ${AI_EMBEDDING_PROVIDER:gemini}
+    model: ${AI_EMBEDDING_MODEL:gemini-embedding-001}
     dimensions: ${AI_EMBEDDING_DIMENSIONS:768}
     batch-size: ${AI_EMBEDDING_BATCH_SIZE:1}
     chunk-token-size: ${AI_EMBEDDING_CHUNK_TOKEN_SIZE:500}
