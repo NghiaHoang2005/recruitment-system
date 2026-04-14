@@ -10,6 +10,7 @@ import com.recruitment.backend.services.ai.pipeline.CvStructuredExtractionServic
 import com.recruitment.backend.services.ai.pipeline.CvTextExtractionService;
 import com.recruitment.backend.services.ai.pipeline.TextNormalizationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AiOrchestrator {
 
     private final CvRepository cvRepository;
@@ -38,7 +40,7 @@ public class AiOrchestrator {
         String language = textNormalizationService.detectLanguage(normalizedText);
 
         String parsedJson = cvStructuredExtractionService.extract(cvId, normalizedText, language);
-
+        log.info("Parsed JSON: {}", parsedJson);
         cv.setRawText(rawText);
         cv.setParsedData(parsedJson);
         cvRepository.save(cv);

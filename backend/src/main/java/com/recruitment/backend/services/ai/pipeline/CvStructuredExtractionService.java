@@ -84,7 +84,7 @@ public class CvStructuredExtractionService {
                      log.debug("Extraction attempt {}/{} for CV: {}", attempt, maxAttempts, cvId);
                      
                      StructuredExtractionResult result = provider.extractStructured(request);
-                      String rawJson = result.getJson();
+                     String rawJson = result.getJson();
                       
                       // Log raw response info
                       log.info("Raw JSON response length: {} chars", rawJson.length());

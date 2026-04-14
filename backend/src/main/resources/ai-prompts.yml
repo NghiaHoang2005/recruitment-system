@@ -150,3 +150,60 @@ prompts:
     • Kỹ sư Backend với 5+ năm kinh nghiệm Java và microservices
     • Chuyên gia công nghệ đám mây (AWS, Kubernetes) và CI/CD
     • Dẫn dắt đội 8 developer tại Startup
+
+  # Embedding prompt templates
+  cv_extract_v3.default.cv_embed_raw: |
+    Create embedding input text for semantic candidate search.
+    Language: {{language}}
+    Type: raw_cv_chunk
+    Content:
+    {{source_text}}
+
+  cv_extract_v3.default.cv_embed_summary: |
+    Create embedding input text for profile summary matching.
+    Language: {{language}}
+    Type: summary
+    Content:
+    {{source_text}}
+
+  cv_extract_v3.default.cv_embed_skills: |
+    Create embedding input text for skill-based matching.
+    Language: {{language}}
+    Type: skills
+    Content:
+    {{source_text}}
+
+  cv_extract_v3.default.cv_embed_experience: |
+    Create embedding input text for experience-based matching.
+    Language: {{language}}
+    Type: experience
+    Content:
+    {{source_text}}
+
+  cv_extract_v3.vi.cv_embed_raw: |
+    Tạo văn bản embedding cho tìm kiếm ứng viên ngữ nghĩa.
+    Ngôn ngữ: {{language}}
+    Loại: raw_cv_chunk
+    Nội dung:
+    {{source_text}}
+
+  cv_extract_v3.vi.cv_embed_summary: |
+    Tạo văn bản embedding cho so khớp tóm tắt hồ sơ.
+    Ngôn ngữ: {{language}}
+    Loại: summary
+    Nội dung:
+    {{source_text}}
+
+  cv_extract_v3.vi.cv_embed_skills: |
+    Tạo văn bản embedding cho so khớp theo kỹ năng.
+    Ngôn ngữ: {{language}}
+    Loại: skills
+    Nội dung:
+    {{source_text}}
+
+  cv_extract_v3.vi.cv_embed_experience: |
+    Tạo văn bản embedding cho so khớp theo kinh nghiệm.
+    Ngôn ngữ: {{language}}
+    Loại: experience
+    Nội dung:
+    {{source_text}}

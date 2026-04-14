@@ -4,6 +4,16 @@ server:
 spring:
   application:
     name: backend
+  ai:
+    openai:
+      base-url: ${SPRING_AI_OPENAI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+      api-key: ${GEMINI_API_KEY}
+      chat:
+        options:
+          model: ${AI_EXTRACTION_MODEL:gemini-flash-latest}
+      embedding:
+        options:
+          model: ${AI_EMBEDDING_MODEL:gemini-embedding-001}
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

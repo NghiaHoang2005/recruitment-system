@@ -7,17 +7,21 @@ import com.recruitment.backend.domain.entities.Cv.CvEmbedding;
 import com.recruitment.backend.domain.entities.Cv.EmbeddingType;
 import com.recruitment.backend.repositories.CvEmbeddingRepository;
 import com.recruitment.backend.repositories.CvRepository;
+import com.recruitment.backend.services.ai.config.AiConfigLoader;
 import com.recruitment.backend.services.ai.config.AiProperties;
 import com.recruitment.backend.services.ai.model.EmbeddingRequest;
 import com.recruitment.backend.services.ai.model.EmbeddingResult;
 import com.recruitment.backend.services.ai.providers.EmbeddingProvider;
+import com.recruitment.backend.services.ai.providers.PromptTemplateProvider;
 import com.recruitment.backend.services.ai.providers.ProviderRegistry;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -32,6 +36,8 @@ public class CvEmbeddingPipelineService {
     private final AiProperties aiProperties;
     private final AiRunLoggingService aiRunLoggingService;
     private final ObjectMapper objectMapper;
+    private final AiConfigLoader aiConfigLoader;
+    private final PromptTemplateProvider promptTemplateProvider;
 
     public CvEmbeddingPipelineService(
             CvRepository cvRepository,
@@ -39,7 +45,9 @@ public class CvEmbeddingPipelineService {
             ProviderRegistry providerRegistry,
             AiProperties aiProperties,
             AiRunLoggingService aiRunLoggingService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AiConfigLoader aiConfigLoader,
+            PromptTemplateProvider promptTemplateProvider
     ) {
         this.cvRepository = cvRepository;
         this.cvEmbeddingRepository = cvEmbeddingRepository;
@@ -47,6 +55,8 @@ public class CvEmbeddingPipelineService {
         this.aiProperties = aiProperties;
         this.aiRunLoggingService = aiRunLoggingService;
         this.objectMapper = objectMapper;
+        this.aiConfigLoader = aiConfigLoader;
+        this.promptTemplateProvider = promptTemplateProvider;
     }
     @Transactional
     public void embedAndStore(
@@ -70,28 +80,44 @@ public class CvEmbeddingPipelineService {
         // Type 1: RAW - text chunks (each chunk is a separate embedding)
         int chunkIndex = 0;
         for (String chunk : rawChunks) {
-            inputs.add(new EmbeddingInput(EmbeddingType.RAW, chunk, chunkIndex++));
+            inputs.add(new EmbeddingInput(
+                    EmbeddingType.RAW,
+                    buildEmbeddingText("cv_embed_raw", language, rawText, chunk, parsedJson),
+                    chunkIndex++
+            ));
         }
         log.debug("Added {} RAW embeddings (text chunks) for CV: {}", chunkIndex, cvId);
 
         // Type 2: SUMMARY - professional summary
         String summary = extractSummary(parsedJson);
         if (!summary.isBlank()) {
-            inputs.add(new EmbeddingInput(EmbeddingType.SUMMARY, summary, 0));
+            inputs.add(new EmbeddingInput(
+                    EmbeddingType.SUMMARY,
+                    buildEmbeddingText("cv_embed_summary", language, rawText, summary, parsedJson),
+                    0
+            ));
             log.debug("Added SUMMARY embedding for CV: {} ({} chars)", cvId, summary.length());
         }
 
         // Type 3: SKILLS - consolidated skills
         String skills = extractSkills(parsedJson);
         if (!skills.isBlank()) {
-            inputs.add(new EmbeddingInput(EmbeddingType.SKILLS, skills, 0));
+            inputs.add(new EmbeddingInput(
+                    EmbeddingType.SKILLS,
+                    buildEmbeddingText("cv_embed_skills", language, rawText, skills, parsedJson),
+                    0
+            ));
             log.debug("Added SKILLS embedding for CV: {} ({} chars)", cvId, skills.length());
         }
 
         // Type 4: EXPERIENCE - work experience
         String experience = extractExperience(parsedJson);
         if (!experience.isBlank()) {
-            inputs.add(new EmbeddingInput(EmbeddingType.EXPERIENCE, experience, 0));
+            inputs.add(new EmbeddingInput(
+                    EmbeddingType.EXPERIENCE,
+                    buildEmbeddingText("cv_embed_experience", language, rawText, experience, parsedJson),
+                    0
+            ));
             log.debug("Added EXPERIENCE embedding for CV: {} ({} chars)", cvId, experience.length());
         }
 
@@ -125,6 +151,11 @@ public class CvEmbeddingPipelineService {
             long latency = System.currentTimeMillis() - start;
             List<float[]> vectors = result.getVectors();
             String promptVersion = aiProperties.getPrompts().getActiveVersion();
+
+            if (vectors.size() != inputs.size()) {
+                throw new IllegalStateException(
+                        "Embedding vector count mismatch. inputs=" + inputs.size() + ", vectors=" + vectors.size());
+            }
 
             log.info("✓ Embedding generation succeeded for CV: {} - {} vectors in {}ms", 
                     cvId, vectors.size(), latency);
@@ -242,6 +273,22 @@ public class CvEmbeddingPipelineService {
 
     private int approxTokenCount(String text) {
         return Math.max(1, text.length() / 4);
+    }
+
+    private String buildEmbeddingText(String task, String language, String cvText, String sourceText, String parsedJson) {
+        String version = aiProperties.getPrompts().getActiveVersion();
+        Map<String, String> vars = new LinkedHashMap<>();
+        vars.put("language", language == null ? "default" : language);
+        vars.put("cv_text", cvText == null ? "" : cvText);
+        vars.put("source_text", sourceText == null ? "" : sourceText);
+        vars.put("parsed_json", parsedJson == null ? "" : parsedJson);
+
+        try {
+            return promptTemplateProvider.getPrompt(task, language, version, vars);
+        } catch (Exception e) {
+            log.warn("Embedding prompt not found for task={}, locale={}, fallback to source text", task, language);
+            return sourceText;
+        }
     }
 
     private record EmbeddingInput(EmbeddingType type, String text, int chunkIndex) {

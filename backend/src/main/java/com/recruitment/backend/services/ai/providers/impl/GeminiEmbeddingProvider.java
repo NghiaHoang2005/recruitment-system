@@ -1,29 +1,18 @@
 package com.recruitment.backend.services.ai.providers.impl;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recruitment.backend.services.ai.config.AiProperties;
 import com.recruitment.backend.services.ai.model.AiUsage;
 import com.recruitment.backend.services.ai.model.EmbeddingRequest;
 import com.recruitment.backend.services.ai.model.EmbeddingResult;
 import com.recruitment.backend.services.ai.providers.EmbeddingProvider;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -34,26 +23,15 @@ import java.util.stream.Collectors;
 )
 public class GeminiEmbeddingProvider implements EmbeddingProvider {
 
-    private final RestTemplate restTemplate;
     private final AiProperties aiProperties;
-    private final ObjectMapper objectMapper;
-    private final String apiKey;
-    private static final String GEMINI_EMBEDDING_API_URL = 
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent";
+    private final EmbeddingModel embeddingModel;
 
     public GeminiEmbeddingProvider(
-            RestTemplate restTemplate,
             AiProperties aiProperties,
-            ObjectMapper objectMapper
+            EmbeddingModel embeddingModel
     ) {
-        this.restTemplate = restTemplate;
         this.aiProperties = aiProperties;
-        this.objectMapper = objectMapper;
-        this.apiKey = System.getenv("GEMINI_API_KEY");
-        
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("GEMINI_API_KEY environment variable not set");
-        }
+        this.embeddingModel = embeddingModel;
     }
 
     @Override
@@ -65,44 +43,61 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
     public EmbeddingResult embed(EmbeddingRequest request) {
         long startTime = System.currentTimeMillis();
         try {
-            Map<String, Object> requestBody = buildGeminiEmbeddingRequest(request);
-            String apiUrl = GEMINI_EMBEDDING_API_URL + "?key=" + apiKey;
-            
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-            String responseJson = restTemplate.postForObject(apiUrl, entity, String.class);
-            long latency = System.currentTimeMillis() - startTime;
-
-            JsonNode response = objectMapper.readTree(responseJson);
-            
-            if (response.has("error")) {
-                String errorMsg = response.path("error").path("message").asText("Unknown error");
-                log.error("Gemini embedding API error: {}", errorMsg);
-                throw new IllegalStateException("Gemini embedding API error: " + errorMsg);
+            if (request.getTexts() == null || request.getTexts().isEmpty()) {
+                throw new IllegalArgumentException("At least one text is required for embedding");
             }
 
-            JsonNode embeddingNode = response.path("embedding").path("values");
-            float[] vector = jsonArrayToFloatArray(embeddingNode);
+            OpenAiEmbeddingOptions options = OpenAiEmbeddingOptions.builder()
+                    .model(request.getModel())
+                    .dimensions(request.getDimensions())
+                    .build();
 
-            int totalTokens = response.path("usageMetadata").path("billableCharacterCount").asInt(0);
+            List<float[]> vectors = new java.util.ArrayList<>(request.getTexts().size());
+            int totalPromptTokens = 0;
+
+            for (int i = 0; i < request.getTexts().size(); i++) {
+                String originalText = request.getTexts().get(i);
+                String text = normalizeInput(originalText);
+
+                log.debug("Embedding item {}/{} ({} chars)", i + 1, request.getTexts().size(), text.length());
+
+                EmbeddingResponse singleResponse = embeddingModel.call(
+                        new org.springframework.ai.embedding.EmbeddingRequest(List.of(text), options)
+                );
+
+                if (singleResponse.getResults() == null || singleResponse.getResults().isEmpty()) {
+                    throw new IllegalStateException("No embedding vector returned for item index " + i);
+                }
+
+                float[] vector = singleResponse.getResults().get(0).getOutput();
+                vectors.add(vector);
+
+                Integer promptTokens = singleResponse.getMetadata() != null
+                        && singleResponse.getMetadata().getUsage() != null
+                        ? singleResponse.getMetadata().getUsage().getPromptTokens()
+                        : null;
+                totalPromptTokens += promptTokens != null ? promptTokens : 0;
+            }
+
+            if (vectors.size() != request.getTexts().size()) {
+                throw new IllegalStateException(
+                        "Embedding vector count mismatch. requested=" + request.getTexts().size()
+                                + ", returned=" + vectors.size());
+            }
+
+            long latency = System.currentTimeMillis() - startTime;
 
             log.info("Gemini embedding successful. texts={}, totalTokens={}, latencyMs={}",
-                    request.getTexts().size(), totalTokens, latency);
-
-            List<float[]> vectors = new ArrayList<>();
-            vectors.add(vector);
+                    request.getTexts().size(), totalPromptTokens, latency);
 
             return EmbeddingResult.builder()
                     .vectors(vectors)
-                    .modelName("gemini-embedding-001")
-                    .modelVersion("gemini-embedding-001")
+                    .modelName(request.getModel())
+                    .modelVersion(request.getModel())
                     .provider(providerName())
-                    .dimensions(vector.length)
+                    .dimensions(vectors.isEmpty() ? 0 : vectors.get(0).length)
                     .usage(AiUsage.builder()
-                            .inputTokens(totalTokens)
+                            .inputTokens(totalPromptTokens)
                             .outputTokens(0)
                             .latencyMs(latency)
                             .build())
@@ -115,64 +110,18 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
         }
     }
 
-    private Map<String, Object> buildGeminiEmbeddingRequest(EmbeddingRequest request) {
-        Map<String, Object> body = new HashMap<>();
-        
-        if (request.getTexts() == null || request.getTexts().isEmpty()) {
-            throw new IllegalArgumentException("At least one text must be provided for embedding");
+    private String normalizeInput(String text) {
+        if (text == null) {
+            return "";
         }
 
-        String textToEmbed = request.getTexts().get(0);
-        if (request.getTexts().size() > 1) {
-            log.warn("Gemini embedding-001 processes one text at a time. " +
-                    "Embedding first text only. {} additional texts will be ignored.", 
-                    request.getTexts().size() - 1);
+        String trimmed = text.trim();
+        int maxChars = aiProperties.getEmbedding().getMaxCharactersPerInput();
+        if (trimmed.length() <= maxChars) {
+            return trimmed;
         }
 
-        body.put("content", Map.of("parts", List.of(
-            Map.of("text", textToEmbed)
-        )));
-
-        return body;
-    }
-
-    private float[] jsonArrayToFloatArray(JsonNode node) {
-        if (!node.isArray()) {
-            throw new IllegalArgumentException("Expected array node for embedding");
-        }
-        float[] result = new float[node.size()];
-        for (int i = 0; i < node.size(); i++) {
-            result[i] = (float) node.get(i).asDouble();
-        }
-        return result;
-    }
-
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class GeminiEmbeddingResponse {
-        private Embedding embedding;
-        private UsageMetadata usageMetadata;
-
-        @Getter
-        @NoArgsConstructor
-        @AllArgsConstructor
-        public static class Embedding {
-            private List<Double> values;
-        }
-
-        @Getter
-        @NoArgsConstructor
-        @AllArgsConstructor
-        public static class UsageMetadata {
-            @JsonProperty("prompt_token_count")
-            private int promptTokenCount;
-
-            @JsonProperty("total_token_count")
-            private int totalTokenCount;
-
-            @JsonProperty("billable_character_count")
-            private int billableCharacterCount;
-        }
+        log.warn("Embedding input exceeds max chars ({} > {}), truncating", trimmed.length(), maxChars);
+        return trimmed.substring(0, maxChars);
     }
 }
