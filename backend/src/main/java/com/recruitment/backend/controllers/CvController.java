@@ -2,6 +2,8 @@ package com.recruitment.backend.controllers;
 
 import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.Cv.CvUploadRequest;
+import com.recruitment.backend.domain.dtos.Cv.CvReviewRequest;
+import com.recruitment.backend.domain.dtos.Cv.CvReviewResponse;
 import com.recruitment.backend.domain.dtos.Cv.ExtractionStatusResponse;
 import com.recruitment.backend.domain.dtos.CvResponse;
 import com.recruitment.backend.domain.dtos.PresignedUrlResponse;
@@ -10,6 +12,7 @@ import com.recruitment.backend.domain.entities.Cv.Cv;
 import com.recruitment.backend.domain.entities.Cv.CvStatus;
 import com.recruitment.backend.domain.entities.User;
 import com.recruitment.backend.services.CvService;
+import com.recruitment.backend.services.CvReviewService;
 import com.recruitment.backend.services.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +29,7 @@ import java.util.UUID;
 public class CvController {
     private final ProfileService profileService;
     private final CvService cvService;
+    private final CvReviewService cvReviewService;
 
     private UUID getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -69,5 +73,24 @@ public class CvController {
     public ResponseEntity<ApiResponse<ExtractionStatusResponse>> getExtractionStatus(@PathVariable UUID cvId) {
         ExtractionStatusResponse status = cvService.getExtractionStatus(getCurrentUserId(), cvId);
         return ResponseEntity.ok(ApiResponse.success(status));
+    }
+
+    @PostMapping("/{cvId}/review")
+    public ResponseEntity<ApiResponse<CvReviewResponse>> reviewCv(
+            @PathVariable UUID cvId,
+            @RequestBody(required = false) CvReviewRequest request
+    ) {
+        UUID jobId = request != null ? request.getJobId() : null;
+        CvReviewResponse response = cvReviewService.createReview(getCurrentUserId(), cvId, jobId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{cvId}/review")
+    public ResponseEntity<ApiResponse<CvReviewResponse>> getLatestReview(
+            @PathVariable UUID cvId,
+            @RequestParam(required = false) UUID jobId
+    ) {
+        CvReviewResponse response = cvReviewService.getLatestReview(getCurrentUserId(), cvId, jobId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

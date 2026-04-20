@@ -201,6 +201,18 @@ json_schemas:
     • Led team of 8 developers
     • Strong system design and mentoring"
 
+  cv_extract_v3.cv_review.json: |
+    {
+      "summary": "string",
+      "fit_score": "number|null",
+      "strengths": ["string"],
+      "weaknesses": ["string"],
+      "improvements": ["string"],
+      "matched_requirements": ["string"],
+      "missing_requirements": ["string"],
+      "action_plan": ["string"]
+    }
+
 # Error recovery prompts - used when AI output needs repair
 repair_prompts:
   # Generic JSON repair prompt

@@ -207,3 +207,105 @@ prompts:
     Loại: experience
     Nội dung:
     {{source_text}}
+
+  cv_extract_v3.default.cv_review_general: |
+    You are a strict CV reviewer.
+    Return ONLY valid JSON (no markdown, no code fences, no explanation), starting with { and ending with }.
+    Use this schema exactly:
+    {{target_schema}}
+
+    Candidate CV raw text:
+    {{cv_raw_text}}
+
+    Candidate parsed profile JSON:
+    {{cv_parsed_json}}
+
+    Analyze the CV and provide:
+    - strengths
+    - weaknesses
+    - improvements
+    - action_plan
+    - concise summary
+    For general review, fit_score can be null.
+
+  cv_extract_v3.default.cv_review_job_match: |
+    You are a strict CV reviewer for job-fit analysis.
+    Return ONLY valid JSON (no markdown, no code fences, no explanation), starting with { and ending with }.
+    Use this schema exactly:
+    {{target_schema}}
+
+    Candidate CV raw text:
+    {{cv_raw_text}}
+
+    Candidate parsed profile JSON:
+    {{cv_parsed_json}}
+
+    Job title: {{job_title}}
+    Job description:
+    {{job_description}}
+
+    Job requirements:
+    {{job_requirements}}
+
+    Job location: {{job_location}}
+
+    Analyze CV vs job and provide:
+    - strengths
+    - weaknesses
+    - improvements
+    - matched_requirements
+    - missing_requirements
+    - action_plan
+    - fit_score (0-100)
+    - concise summary
+
+  cv_extract_v3.vi.cv_review_general: |
+    Bạn là chuyên gia review CV.
+    Chỉ trả về JSON hợp lệ (không markdown, không giải thích), bắt đầu bằng { và kết thúc bằng }.
+    Dùng đúng schema sau:
+    {{target_schema}}
+
+    CV gốc:
+    {{cv_raw_text}}
+
+    Dữ liệu CV đã parse:
+    {{cv_parsed_json}}
+
+    Hãy phân tích và trả về:
+    - strengths (điểm mạnh)
+    - weaknesses (điểm yếu)
+    - improvements (điểm cần cải thiện)
+    - action_plan (kế hoạch hành động)
+    - summary (tóm tắt ngắn)
+    Với review chung, fit_score có thể null.
+
+  cv_extract_v3.vi.cv_review_job_match: |
+    Bạn là chuyên gia review CV theo vị trí công việc.
+    Chỉ trả về JSON hợp lệ (không markdown, không giải thích), bắt đầu bằng { và kết thúc bằng }.
+    Dùng đúng schema sau:
+    {{target_schema}}
+
+    CV gốc:
+    {{cv_raw_text}}
+
+    Dữ liệu CV đã parse:
+    {{cv_parsed_json}}
+
+    Tiêu đề công việc: {{job_title}}
+    Mô tả công việc:
+    {{job_description}}
+
+    Yêu cầu công việc:
+    {{job_requirements}}
+
+    Địa điểm: {{job_location}}
+
+    Hãy phân tích mức độ phù hợp CV với job và trả về:
+    - strengths
+    - weaknesses
+    - improvements
+    - matched_requirements
+    - missing_requirements
+    - action_plan
+    - fit_score (0-100)
+    - summary ngắn
