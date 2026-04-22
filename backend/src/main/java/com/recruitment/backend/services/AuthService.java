@@ -42,7 +42,10 @@ public class AuthService {
                 .build();
         userRepository.save(user);
         var jwtToken = generateToken(user);
-        return AuthResponse.builder().token(jwtToken).build();
+        return AuthResponse.builder()
+                .token(jwtToken)
+                .authenticated(true)
+                .build();
     }
 
     public AuthResponse authenticate(AuthRequest request) {
@@ -66,7 +69,7 @@ public class AuthService {
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
                 .issuer("recruitment_system")
                 .issueTime(new Date())
-                .subject(user.getUsername())
+                .subject(user.getEmail())
                 .claim("scope", user.getRole().toString())
                 .expirationTime(new Date(new Date().getTime() + 1000 * 60 * 60))
                 .build();

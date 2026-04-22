@@ -8,8 +8,6 @@ import com.recruitment.backend.domain.dtos.Cv.ExtractionStatusResponse;
 import com.recruitment.backend.domain.dtos.CvResponse;
 import com.recruitment.backend.domain.dtos.PresignedUrlResponse;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
-import com.recruitment.backend.domain.entities.Cv.Cv;
-import com.recruitment.backend.domain.entities.Cv.CvStatus;
 import com.recruitment.backend.domain.entities.User;
 import com.recruitment.backend.services.CvService;
 import com.recruitment.backend.services.CvReviewService;

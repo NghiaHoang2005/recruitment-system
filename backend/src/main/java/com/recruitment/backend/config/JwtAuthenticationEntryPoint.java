@@ -1,5 +1,6 @@
 package com.recruitment.backend.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.exceptions.ErrorCode;
 import jakarta.servlet.ServletException;
@@ -8,7 +9,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
-import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 
@@ -27,7 +27,6 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 .build();
 
         ObjectMapper objectMapper = new ObjectMapper();
-
         response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
         response.flushBuffer();
     }
