@@ -16,13 +16,13 @@ public class ApiResponse<T> {
     private int code = 1000; // Success code
     @Builder.Default
     private String message = "Success";
-    private T data;
+    private T result;
     
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
                 .code(1000)
                 .message("Success")
-                .data(data)
+                .result(data)
                 .build();
     }
 }

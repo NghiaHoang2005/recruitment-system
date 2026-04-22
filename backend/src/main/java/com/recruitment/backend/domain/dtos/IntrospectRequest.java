@@ -5,11 +5,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class AuthResponse {
+@Data
+public class IntrospectRequest {
     private String token;
-    private boolean authenticated;
 }
