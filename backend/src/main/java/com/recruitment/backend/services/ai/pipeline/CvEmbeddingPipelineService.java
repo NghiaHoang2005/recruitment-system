@@ -90,36 +90,42 @@ public class CvEmbeddingPipelineService {
 
         // Type 2: SUMMARY - professional summary
         String summary = extractSummary(parsedJson);
-        if (!summary.isBlank()) {
-            inputs.add(new EmbeddingInput(
-                    EmbeddingType.SUMMARY,
-                    buildEmbeddingText("cv_embed_summary", language, rawText, summary, parsedJson),
-                    0
-            ));
-            log.debug("Added SUMMARY embedding for CV: {} ({} chars)", cvId, summary.length());
+        if (summary.isBlank()) {
+            summary = fallbackSummary(language);
+            log.debug("SUMMARY is empty, using fallback text for CV: {}", cvId);
         }
+        inputs.add(new EmbeddingInput(
+                EmbeddingType.SUMMARY,
+                buildEmbeddingText("cv_embed_summary", language, rawText, summary, parsedJson),
+                0
+        ));
+        log.debug("Added SUMMARY embedding for CV: {} ({} chars)", cvId, summary.length());
 
         // Type 3: SKILLS - consolidated skills
         String skills = extractSkills(parsedJson);
-        if (!skills.isBlank()) {
-            inputs.add(new EmbeddingInput(
-                    EmbeddingType.SKILLS,
-                    buildEmbeddingText("cv_embed_skills", language, rawText, skills, parsedJson),
-                    0
-            ));
-            log.debug("Added SKILLS embedding for CV: {} ({} chars)", cvId, skills.length());
+        if (skills.isBlank()) {
+            skills = fallbackSkills(language);
+            log.debug("SKILLS is empty, using fallback text for CV: {}", cvId);
         }
+        inputs.add(new EmbeddingInput(
+                EmbeddingType.SKILLS,
+                buildEmbeddingText("cv_embed_skills", language, rawText, skills, parsedJson),
+                0
+        ));
+        log.debug("Added SKILLS embedding for CV: {} ({} chars)", cvId, skills.length());
 
         // Type 4: EXPERIENCE - work experience
         String experience = extractExperience(parsedJson);
-        if (!experience.isBlank()) {
-            inputs.add(new EmbeddingInput(
-                    EmbeddingType.EXPERIENCE,
-                    buildEmbeddingText("cv_embed_experience", language, rawText, experience, parsedJson),
-                    0
-            ));
-            log.debug("Added EXPERIENCE embedding for CV: {} ({} chars)", cvId, experience.length());
+        if (experience.isBlank()) {
+            experience = fallbackExperience(language);
+            log.debug("EXPERIENCE is empty, using fallback text for CV: {}", cvId);
         }
+        inputs.add(new EmbeddingInput(
+                EmbeddingType.EXPERIENCE,
+                buildEmbeddingText("cv_embed_experience", language, rawText, experience, parsedJson),
+                0
+        ));
+        log.debug("Added EXPERIENCE embedding for CV: {} ({} chars)", cvId, experience.length());
 
         if (inputs.isEmpty()) {
             log.warn("No embedding inputs created for CV: {}", cvId);
@@ -273,6 +279,27 @@ public class CvEmbeddingPipelineService {
 
     private int approxTokenCount(String text) {
         return Math.max(1, text.length() / 4);
+    }
+
+    private String fallbackSummary(String language) {
+        if ("vi".equalsIgnoreCase(language)) {
+            return "Ung vien chua cung cap phan gioi thieu ban than ro rang trong CV.";
+        }
+        return "Candidate did not provide a clear professional summary in the CV.";
+    }
+
+    private String fallbackSkills(String language) {
+        if ("vi".equalsIgnoreCase(language)) {
+            return "Ung vien chua liet ke ky nang cu the trong CV.";
+        }
+        return "Candidate did not list specific skills in the CV.";
+    }
+
+    private String fallbackExperience(String language) {
+        if ("vi".equalsIgnoreCase(language)) {
+            return "Ung vien cap do entry-level, chua co kinh nghiem lam viec chinh thuc, dang tim co hoi thuc tap.";
+        }
+        return "Entry-level candidate, no formal work experience, looking for internship opportunities.";
     }
 
     private String buildEmbeddingText(String task, String language, String cvText, String sourceText, String parsedJson) {

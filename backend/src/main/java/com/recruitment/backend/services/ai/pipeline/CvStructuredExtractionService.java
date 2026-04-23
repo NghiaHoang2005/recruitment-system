@@ -98,6 +98,7 @@ public class CvStructuredExtractionService {
                       log.info("Cleaned JSON length: {} chars", cleanedJson.length());
                       
                       String json = ensureValidJsonOrRepair(provider, request, cleanedJson, attempt, maxAttempts);
+                      json = normalizeExtractedJson(json);
       
                       long latency = System.currentTimeMillis() - start;
                       log.info("✓ Structured extraction succeeded for CV: {} in {}ms (attempt {}/{})", 
@@ -195,7 +196,7 @@ public class CvStructuredExtractionService {
              return repairedJson;
          }
     
-         private boolean isValidJson(String json) {
+          private boolean isValidJson(String json) {
               if (json == null || json.isBlank()) {
                   log.error("JSON is null or blank!");
                   return false;
@@ -220,6 +221,19 @@ public class CvStructuredExtractionService {
                   return false;
               }
           }
+
+         private String normalizeExtractedJson(String json) {
+             try {
+                 JsonNode node = objectMapper.readTree(json);
+                 if (node.isObject() && !node.has("additional_fields")) {
+                     ((com.fasterxml.jackson.databind.node.ObjectNode) node)
+                             .set("additional_fields", objectMapper.createObjectNode());
+                 }
+                 return objectMapper.writeValueAsString(node);
+             } catch (Exception e) {
+                 return json;
+             }
+         }
     
         private String loadTargetSchema(String version) {
             // Load JSON schema from configuration
@@ -273,7 +287,8 @@ public class CvStructuredExtractionService {
                     "\"school\":\"string|null\"," +
                     "\"degree\":\"string|null\"," +
                     "\"start_date\":\"string|null\"," +
-                    "\"end_date\":\"string|null\"}]" +
+                    "\"end_date\":\"string|null\"}]," +
+                    "\"additional_fields\":{\"<dynamic_key>\":\"any valid JSON value\"}" +
                     "}";
         }
     }

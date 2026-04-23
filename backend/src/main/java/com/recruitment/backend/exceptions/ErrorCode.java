@@ -22,6 +22,9 @@ public enum ErrorCode {
     URL_NOT_FOUND(2008, "Không tìm thấy URL của file CV", HttpStatus.INTERNAL_SERVER_ERROR),
     CV_REVIEW_NOT_FOUND(2009, "Không tìm thấy kết quả review CV", HttpStatus.NOT_FOUND),
     CV_REVIEW_RATE_LIMIT_EXCEEDED(2010, "Bạn đã dùng hết 3 lượt review CV trong 24 giờ qua", HttpStatus.TOO_MANY_REQUESTS),
+    CV_BUILDER_TEMPLATE_NOT_FOUND(2011, "Template CV không tồn tại", HttpStatus.NOT_FOUND),
+    CV_BUILDER_TEMPLATE_REQUIRED(2012, "Vui lòng chọn template trước khi tạo CV", HttpStatus.BAD_REQUEST),
+    CV_BUILDER_DRAFT_NOT_FOUND(2013, "Bản nháp CV không tồn tại", HttpStatus.NOT_FOUND),
 
     CANDIDATE_NOT_FOUND(3001, "Ứng viên không tồn tại", HttpStatus.NOT_FOUND);
 
