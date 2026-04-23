@@ -1,14 +1,10 @@
 package com.recruitment.backend.domain.entities;
 
-
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-
-import java.util.Set;
 
 @Entity
 @Getter
@@ -17,12 +13,9 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-@Table(name = "roles")
-public class Role {
+@Table(name = "permissions")
+public class Permission {
     @Id
     String name;
     String description;
-
-    @ManyToMany
-    Set<Permission> permissions;
 }
