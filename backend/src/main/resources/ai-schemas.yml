@@ -108,6 +108,20 @@ schemas:
               description: End date / graduation date in YYYY-MM-DD format
               example: "2019-05-31"
 
+      additional_fields:
+        type: object
+        description: Dynamic fields found in CV beyond the fixed schema (projects, certifications, awards, languages, publications, links, preferences, etc.)
+        additionalProperties: true
+        example:
+          certifications:
+            - "AWS Certified Solutions Architect"
+          projects:
+            - name: "Recruitment Platform"
+              tech_stack: ["Java", "Spring Boot", "PostgreSQL"]
+          languages:
+            - "English"
+            - "Vietnamese"
+
   # Experience array schema - for detailed extraction
   cv_extract_v3.experiences:
     type: array
@@ -175,7 +189,10 @@ json_schemas:
           "start_date": "string|null (YYYY-MM-DD)",
           "end_date": "string|null (YYYY-MM-DD)"
         }
-      ]
+      ],
+      "additional_fields": {
+        "<dynamic_key>": "any valid JSON value (string|number|boolean|object|array|null)"
+      }
     }
 
   # Experience array schema

@@ -39,7 +39,7 @@ public class CvTextExtractionService {
             // 3. Kiểm tra mã lỗi HTTP
             int responseCode = connection.getResponseCode();
             if (responseCode != java.net.HttpURLConnection.HTTP_OK) {
-                log.error("Cloudinary từ chối tải file. Mã HTTP: {}", responseCode);
+                log.error("Từ chối tải file. Mã HTTP: {}", responseCode);
                 throw new Exception("HTTP Error Code: " + responseCode);
             }
 

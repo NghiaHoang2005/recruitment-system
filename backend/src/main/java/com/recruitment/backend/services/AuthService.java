@@ -71,6 +71,7 @@ public class AuthService {
                 .issueTime(new Date())
                 .subject(user.getEmail())
                 .claim("scope", user.getRole().toString())
+                .claim("user_id", user.getId().toString())
                 .expirationTime(new Date(new Date().getTime() + 1000 * 60 * 60))
                 .build();
 
