@@ -1,6 +1,6 @@
 package com.recruitment.backend.domain.enums;
 
-public enum Role {
+public enum AccountType {
     CANDIDATE,
     RECRUITER,
     ADMIN

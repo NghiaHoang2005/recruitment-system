@@ -36,8 +36,9 @@ public class Job {
 
     private String salaryRange;
 
-    @Column(nullable = false)
-    private String companyName;
+    @ManyToOne
+    @JoinColumn(name = "company_id")
+    private Company company;
 
     private LocalDateTime createdAt;
 
