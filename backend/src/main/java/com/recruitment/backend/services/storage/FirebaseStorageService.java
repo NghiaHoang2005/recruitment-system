@@ -33,4 +33,15 @@ public class FirebaseStorageService {
 
         return blob.signUrl(2, TimeUnit.HOURS).toString();
     }
+
+    public void deleteFile(String fileName) {
+        Bucket bucket = StorageClient.getInstance().bucket();
+        Blob blob = bucket.get(fileName);
+
+        if (blob == null) {
+            return;
+        }
+
+        blob.delete();
+    }
 }

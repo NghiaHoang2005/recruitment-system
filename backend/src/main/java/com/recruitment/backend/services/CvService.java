@@ -1,6 +1,7 @@
 package com.recruitment.backend.services;
 
 import com.cloudinary.Cloudinary;
+import com.recruitment.backend.domain.dtos.Cv.CvItemResponse;
 import com.recruitment.backend.domain.dtos.Cv.CvUploadRequest;
 import com.recruitment.backend.domain.dtos.Cv.ExtractionStatusResponse;
 import com.recruitment.backend.domain.dtos.CvResponse;
@@ -59,17 +60,22 @@ public class CvService {
 
     public CvResponse processAndSaveUploadedCv(UUID currentUserId, CvUploadRequest request) {
        try{
+           validateCvFile(request.getFile());
+
            String currentMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy_MM"));
            String folder = "cv_uploads/" + currentMonth;
            String filePath = firebaseStorageService.uploadCv(request.getFile(), folder);
 
+           boolean hasNoCv = cvRepository.findByCandidateUserIdOrderByIsDefaultDescUploadedAtDesc(currentUserId).isEmpty();
+
            Candidate candidateRef = candidateRepository.getReferenceById(currentUserId);
            Cv newCv = new Cv();
-           newCv.setFileUrl(filePath);
-           newCv.setCvName(request.getFile().getOriginalFilename());
-           newCv.setAiStatus(CvStatus.PENDING);
-           newCv.setCandidate(candidateRef);
-           newCv = cvRepository.save(newCv);
+            newCv.setFileUrl(filePath);
+            newCv.setCvName(request.getFile().getOriginalFilename());
+            newCv.setAiStatus(CvStatus.PENDING);
+            newCv.setIsDefault(hasNoCv);
+            newCv.setCandidate(candidateRef);
+            newCv = cvRepository.save(newCv);
 
            String signedUrlForAi = firebaseStorageService.getPresignedUrl(filePath);
            asyncCvProcessor.processCvInBackground(newCv.getId(), signedUrlForAi);
@@ -199,5 +205,52 @@ public class CvService {
         }
 
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CvItemResponse> getCurrentUserCv(UUID currentUserId) {
+        List<Cv> cvs = cvRepository.findByCandidateUserIdOrderByIsDefaultDescUploadedAtDesc(currentUserId);
+
+        return cvs.stream()
+                .map(cv -> CvItemResponse.builder()
+                        .id(cv.getId())
+                        .cvName(cv.getCvName())
+                        .build())
+                .toList();
+    }
+
+    @Transactional
+    public void setDefaultCv(UUID currentUserId, UUID cvId) {
+        Cv cv = cvRepository.findByIdAndCandidateUserId(cvId, currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
+
+        cvRepository.clearDefaultByCandidateId(currentUserId);
+        cv.setIsDefault(true);
+        cvRepository.save(cv);
+
+    }
+
+    @Transactional
+    public void deleteCv(UUID currentUserId, UUID cvId) {
+        Cv cv = cvRepository.findByIdAndCandidateUserId(cvId, currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
+
+        boolean wasDefault = Boolean.TRUE.equals(cv.getIsDefault());
+
+        cvRepository.delete(cv);
+
+        if (wasDefault) {
+            cvRepository.findTopByCandidateUserIdOrderByUploadedAtDesc(currentUserId)
+                    .ifPresent(nextCv -> {
+                        nextCv.setIsDefault(true);
+                        cvRepository.save(nextCv);
+                    });
+        }
+
+        try {
+            firebaseStorageService.deleteFile(cv.getFileUrl());
+        } catch (Exception e) {
+            log.error("Lỗi khi xóa file CV từ Firebase Storage: {}", cv.getFileUrl(), e);
+        }
     }
 }
