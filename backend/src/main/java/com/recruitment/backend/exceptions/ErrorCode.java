@@ -32,6 +32,9 @@ public enum ErrorCode {
     CV_BUILDER_TEMPLATE_NOT_FOUND(2011, "Template CV không tồn tại", HttpStatus.NOT_FOUND),
     CV_BUILDER_TEMPLATE_REQUIRED(2012, "Vui lòng chọn template trước khi tạo CV", HttpStatus.BAD_REQUEST),
     CV_BUILDER_DRAFT_NOT_FOUND(2013, "Bản nháp CV không tồn tại", HttpStatus.NOT_FOUND),
+    CV_BUILDER_INVALID_CONTENT(2014, "Nội dung CV draft không hợp lệ", HttpStatus.BAD_REQUEST),
+    CV_BUILDER_INVALID_SECTION(2015, "Section custom không hợp lệ", HttpStatus.BAD_REQUEST),
+    CV_BUILDER_INVALID_SECTION_ORDER(2016, "Thứ tự section không hợp lệ", HttpStatus.BAD_REQUEST),
 
     CANDIDATE_NOT_FOUND(3001, "Ứng viên không tồn tại", HttpStatus.NOT_FOUND);
 

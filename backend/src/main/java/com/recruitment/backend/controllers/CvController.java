@@ -1,14 +1,10 @@
 package com.recruitment.backend.controllers;
 
 import com.recruitment.backend.domain.dtos.ApiResponse;
-import com.recruitment.backend.domain.dtos.Cv.CvUploadRequest;
-import com.recruitment.backend.domain.dtos.Cv.CvReviewRequest;
-import com.recruitment.backend.domain.dtos.Cv.CvReviewResponse;
-import com.recruitment.backend.domain.dtos.Cv.ExtractionStatusResponse;
+import com.recruitment.backend.domain.dtos.Cv.*;
 import com.recruitment.backend.domain.dtos.CvResponse;
 import com.recruitment.backend.domain.dtos.PresignedUrlResponse;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
-import com.recruitment.backend.domain.entities.User;
 import com.recruitment.backend.services.CvService;
 import com.recruitment.backend.services.CvReviewService;
 import com.recruitment.backend.services.ProfileService;
@@ -19,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -91,5 +88,23 @@ public class CvController {
     ) {
         CvReviewResponse response = cvReviewService.getLatestReview(getCurrentUserId(), cvId, jobId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping()
+    public ResponseEntity<ApiResponse<List<CvItemResponse>>> getCurrentUserCv() {
+        List<CvItemResponse> response = cvService.getCurrentUserCv(getCurrentUserId());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PutMapping("/{cvId}/default")
+    public ResponseEntity<ApiResponse<String>> setDefaultCv(@PathVariable UUID cvId) {
+        cvService.setDefaultCv(getCurrentUserId(), cvId);
+        return ResponseEntity.ok(ApiResponse.success("CV đã được đặt làm mặc định."));
+    }
+
+    @DeleteMapping("/{cvId}")
+    public ResponseEntity<ApiResponse<String>> deleteCv(@PathVariable UUID cvId) {
+        cvService.deleteCv(getCurrentUserId(), cvId);
+        return ResponseEntity.ok(ApiResponse.success("CV đã được xóa thành công."));
     }
 }

@@ -9,6 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -26,6 +27,15 @@ public class Cv {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "candidate_id", nullable = false)
     private Candidate candidate;
+
+    @OneToMany(mappedBy = "cv", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<CvEmbedding> embeddings;
+
+    @OneToMany(mappedBy = "cv", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<CvReview> reviews;
+
+    @OneToMany(mappedBy = "cv", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<CvAiRun> aiRuns;
 
     private String cvName;
     private String fileUrl;
