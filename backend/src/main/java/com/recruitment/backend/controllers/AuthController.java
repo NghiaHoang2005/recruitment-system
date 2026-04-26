@@ -36,12 +36,18 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(authService.authenticate(request)));
     }
 
-    @PostMapping("introspect")
+    @PostMapping("/introspect")
     public ApiResponse<IntrospectResponse> introspect(@RequestBody IntrospectRequest request) throws ParseException, JOSEException {
         var result = authService.introspect(request);
         return ApiResponse.<IntrospectResponse>builder()
                 .result(result)
                 .message("Success")
                 .build();
+    }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@RequestBody LogoutRequest request) throws ParseException, JOSEException {
+        authService.logout(request);
+        return ApiResponse.<Void>builder().build();
     }
 }

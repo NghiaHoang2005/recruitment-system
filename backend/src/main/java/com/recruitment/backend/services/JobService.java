@@ -33,7 +33,7 @@ public class JobService {
                 .requirements(dto.getRequirements())
                 .location(dto.getLocation())
                 .salaryRange(dto.getSalaryRange())
-                .companyName(dto.getCompanyName())
+//                .companyName(dto.getCompanyName())
                 .recruiter(recruiter)
                 .build();
 
