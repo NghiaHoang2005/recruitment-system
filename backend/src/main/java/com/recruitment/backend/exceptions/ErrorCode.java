@@ -18,6 +18,7 @@ public enum ErrorCode {
     COMPANY_MEMBER_EXISTED(1010, "Nha tuyen dung dang cho duoc duyet", HttpStatus.BAD_REQUEST),
     RECRUITER_ALREADY_JOINED(1011, "Nha tuyen dung da tham gia mot cong ty khac", HttpStatus.BAD_REQUEST),
     COMPANY_MEMBER_NOT_FOUND(1012, "Yeu cau tham gia khong ton tai", HttpStatus.NOT_FOUND),
+    INVALID_KEY(1013, "Invalid message key", HttpStatus.BAD_REQUEST),
 
     CV_NOT_FOUND(2001, "CV không tồn tại", HttpStatus.NOT_FOUND),
     CV_PROCESSING_FAILED(2002, "Xử lý CV thất bại", HttpStatus.INTERNAL_SERVER_ERROR),

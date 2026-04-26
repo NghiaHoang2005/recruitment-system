@@ -15,7 +15,7 @@ public class JobMapper {
                 .requirements(job.getRequirements())
                 .location(job.getLocation())
                 .salaryRange(job.getSalaryRange())
-                .companyName(job.getCompanyName())
+//                .companyName(job.getCompanyName())
                 .createdAt(job.getCreatedAt())
                 .recruiterId(job.getRecruiter().getId())
                 .build();
