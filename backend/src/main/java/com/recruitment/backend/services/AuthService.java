@@ -6,9 +6,12 @@ import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.recruitment.backend.domain.dtos.*;
+import com.recruitment.backend.domain.entities.Role;
 import com.recruitment.backend.domain.entities.User;
+import com.recruitment.backend.domain.enums.AccountType;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
+import com.recruitment.backend.repositories.RoleRepository;
 import com.recruitment.backend.repositories.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.ParseException;
 import java.util.Date;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -29,17 +33,18 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RoleRepository roleRepository;
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public AuthResponse register(RegisterRequest request, AccountType accountType) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new AppException(ErrorCode.USER_EXISTED);
         }
+        Role role = roleRepository.findById(accountType.name()).orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
         var user = User.builder()
-                .fullName(request.getFullName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(request.getRole())
+                .role(role)
                 .build();
         userRepository.save(user);
         var jwtToken = generateToken(user);
@@ -71,7 +76,7 @@ public class AuthService {
                 .issuer("recruitment_system")
                 .issueTime(new Date())
                 .subject(user.getEmail())
-                .claim("scope", user.getRole().toString())
+                .claim("scope", user.getRole().getName())
                 .claim("user_id", user.getId().toString())
                 .expirationTime(new Date(new Date().getTime() + 1000 * 60 * 60))
                 .build();

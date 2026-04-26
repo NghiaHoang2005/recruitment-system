@@ -11,6 +11,13 @@ public enum ErrorCode {
     UNAUTHENTICATED(1003, "Chưa xác thực", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(1004, "Không có quyền truy cập", HttpStatus.FORBIDDEN),
     USER_EXISTED(1005, "Người dùng đã tồn tại", HttpStatus.BAD_REQUEST),
+    ROLE_NOT_FOUND(1006, "Vai tro khong ton tai", HttpStatus.NOT_FOUND),
+    RECRUITER_PROFILE_ALREADY_EXISTS(1007, "Thong tin nha tuyen dung da ton tai", HttpStatus.BAD_REQUEST),
+    RECRUITER_PROFILE_NOT_FOUND(1008, "Thong tin nha tuyen dung khong ton tai", HttpStatus.NOT_FOUND),
+    COMPANY_NOT_FOUND(1009, "Cong ty khong ton tai", HttpStatus.NOT_FOUND),
+    COMPANY_MEMBER_EXISTED(1010, "Nha tuyen dung dang cho duoc duyet", HttpStatus.BAD_REQUEST),
+    RECRUITER_ALREADY_JOINED(1011, "Nha tuyen dung da tham gia mot cong ty khac", HttpStatus.BAD_REQUEST),
+    COMPANY_MEMBER_NOT_FOUND(1012, "Yeu cau tham gia khong ton tai", HttpStatus.NOT_FOUND),
 
     CV_NOT_FOUND(2001, "CV không tồn tại", HttpStatus.NOT_FOUND),
     CV_PROCESSING_FAILED(2002, "Xử lý CV thất bại", HttpStatus.INTERNAL_SERVER_ERROR),

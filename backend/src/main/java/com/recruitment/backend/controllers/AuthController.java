@@ -2,6 +2,7 @@ package com.recruitment.backend.controllers;
 
 import com.nimbusds.jose.JOSEException;
 import com.recruitment.backend.domain.dtos.*;
+import com.recruitment.backend.domain.enums.AccountType;
 import com.recruitment.backend.services.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,10 +20,16 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(@RequestBody RegisterRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(authService.register(request)));
+    @PostMapping("/register/candidate")
+    public ResponseEntity<ApiResponse<AuthResponse>> registerCandidate(@RequestBody RegisterRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(authService.register(request, AccountType.CANDIDATE)));
     }
+
+    @PostMapping("/register/recruiter")
+    public ResponseEntity<ApiResponse<AuthResponse>> registerRecruiter(@RequestBody RegisterRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(authService.register(request, AccountType.RECRUITER)));
+    }
+
 
     @PostMapping("/authenticate")
     public ResponseEntity<ApiResponse<AuthResponse>> authenticate(@RequestBody AuthRequest request) {
