@@ -215,6 +215,8 @@ public class CvService {
                 .map(cv -> CvItemResponse.builder()
                         .id(cv.getId())
                         .cvName(cv.getCvName())
+                        .uploadedAt(cv.getUploadedAt())
+                        .isDefault(cv.getIsDefault())
                         .build())
                 .toList();
     }

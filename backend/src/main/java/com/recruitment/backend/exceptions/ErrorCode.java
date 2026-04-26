@@ -35,6 +35,7 @@ public enum ErrorCode {
     CV_BUILDER_INVALID_CONTENT(2014, "Nội dung CV draft không hợp lệ", HttpStatus.BAD_REQUEST),
     CV_BUILDER_INVALID_SECTION(2015, "Section custom không hợp lệ", HttpStatus.BAD_REQUEST),
     CV_BUILDER_INVALID_SECTION_ORDER(2016, "Thứ tự section không hợp lệ", HttpStatus.BAD_REQUEST),
+    CV_BUILDER_SECTION_NOT_FOUND(2017, "Section không tồn tại trong bản nháp", HttpStatus.NOT_FOUND),
 
     CANDIDATE_NOT_FOUND(3001, "Ứng viên không tồn tại", HttpStatus.NOT_FOUND);
 
