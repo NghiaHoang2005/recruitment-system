@@ -63,3 +63,5 @@ ai:
 
 jwt:
   signerKey: ${SIGNER_KEY}
+  valid-duration: 3600 #seconds
+  refreshable-duration: 36000 #seconds
