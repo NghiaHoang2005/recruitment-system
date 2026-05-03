@@ -27,4 +27,7 @@ public class Candidate {
     private String headline;
     private String phoneNumber;
     private String profilePictureUrl;
+
+    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT false")
+    private Boolean openToWork = false;
 }

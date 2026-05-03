@@ -4,10 +4,8 @@ import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.Cv.*;
 import com.recruitment.backend.domain.dtos.CvResponse;
 import com.recruitment.backend.domain.dtos.PresignedUrlResponse;
-import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
 import com.recruitment.backend.services.CvService;
 import com.recruitment.backend.services.CvReviewService;
-import com.recruitment.backend.services.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,7 +21,6 @@ import java.util.UUID;
 @RequestMapping("/api/cv")
 @RequiredArgsConstructor
 public class CvController {
-    private final ProfileService profileService;
     private final CvService cvService;
     private final CvReviewService cvReviewService;
 
@@ -43,11 +40,6 @@ public class CvController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/sync-profile")
-    public ResponseEntity<ApiResponse<String>> syncToProfile(@RequestBody ProfileCandidateUpdateRequest request) {
-        profileService.confirmAndUpdateProfile(getCurrentUserId(), request);
-        return ResponseEntity.ok(ApiResponse.success("Hồ sơ của bạn đã được cập nhật thành công!"));
-    }
 
     @GetMapping("/{cvId}/presigned-url")
     public ResponseEntity<ApiResponse<PresignedUrlResponse>> getPresignedUrl(@PathVariable UUID cvId) {

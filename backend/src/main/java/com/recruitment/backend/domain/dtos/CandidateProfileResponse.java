@@ -1,21 +1,19 @@
 package com.recruitment.backend.domain.dtos;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.Getter;
 
 import java.util.List;
+import java.util.UUID;
 
-@Data
+@Getter
 @Builder
-@AllArgsConstructor
-@NoArgsConstructor
-public class ProfileCandidateUpdateRequest {
+public class CandidateProfileResponse {
+    private UUID candidateId;
     private String fullName;
     private String headline;
     private String phoneNumber;
+    private String profilePictureUrl;
     private Boolean openToWork;
-
-    private List<String> confirmedSkills;
+    private List<String> skills;
 }

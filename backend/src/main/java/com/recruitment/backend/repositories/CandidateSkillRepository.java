@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -15,4 +16,7 @@ public interface CandidateSkillRepository extends JpaRepository<CandidateSkill, 
     @Modifying
     @Query("DELETE FROM CandidateSkill cs WHERE cs.candidate.userId = :candidateId")
     void deleteAllByCandidateId(UUID candidateId);
+
+    @Query("SELECT cs FROM CandidateSkill cs JOIN FETCH cs.skill WHERE cs.candidate.userId = :candidateId")
+    List<CandidateSkill> findByCandidateUserId(UUID candidateId);
 }
