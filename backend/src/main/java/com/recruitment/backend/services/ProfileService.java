@@ -2,6 +2,7 @@ package com.recruitment.backend.services;
 
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
+import com.recruitment.backend.domain.dtos.Skill.AddSkillRequest;
 import com.recruitment.backend.domain.entities.Candidate.Candidate;
 import com.recruitment.backend.domain.entities.Candidate.CandidateSkill;
 import com.recruitment.backend.exceptions.AppException;
@@ -46,7 +47,7 @@ public class ProfileService {
     }
 
     @Transactional
-    public void confirmAndUpdateProfile(UUID userId, ProfileCandidateUpdateRequest request) {
+    public CandidateProfileResponse confirmAndUpdateProfile(UUID userId, ProfileCandidateUpdateRequest request) {
         Candidate candidate = candidateRepository.findById(userId).orElseThrow(()-> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
         candidate.setFullName(request.getFullName());
         candidate.setHeadline(request.getHeadline());
@@ -57,5 +58,7 @@ public class ProfileService {
         }
 
         candidateRepository.save(candidate);
+        CandidateProfileResponse response = getCandidateProfile(userId);
+        return response;
     }
 }

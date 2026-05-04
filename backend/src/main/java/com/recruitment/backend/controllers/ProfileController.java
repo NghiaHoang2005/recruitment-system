@@ -3,6 +3,8 @@ package com.recruitment.backend.controllers;
 import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
+import com.recruitment.backend.domain.dtos.Skill.AddSkillRequest;
+import com.recruitment.backend.domain.dtos.Skill.DeleteSkillRequest;
 import com.recruitment.backend.services.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -32,8 +35,7 @@ public class ProfileController {
     }
 
     @PutMapping("/candidate")
-    public ResponseEntity<ApiResponse<String>> updateCandidateProfile(@RequestBody ProfileCandidateUpdateRequest request) {
-        profileService.confirmAndUpdateProfile(getCurrentUserId(), request);
-        return ResponseEntity.ok(ApiResponse.success("Hồ sơ của bạn đã được cập nhật thành công!"));
+    public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateCandidateProfile(@RequestBody ProfileCandidateUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(profileService.confirmAndUpdateProfile(getCurrentUserId(), request)));
     }
 }
