@@ -22,6 +22,7 @@ public class CvBuilderDraftResponse {
     private CvBuilderValidationStatus validationStatus;
     private List<CvBuilderValidationIssue> validationIssues;
     private LocalDateTime validatedAt;
+    private Integer version;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

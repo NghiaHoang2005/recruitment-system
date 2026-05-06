@@ -41,6 +41,10 @@ public class CvBuilderDraft {
     @Column(name = "content_json", nullable = false, columnDefinition = "TEXT")
     private String contentJson;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Integer version = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     private CvBuilderDraftStatus status;
