@@ -39,6 +39,7 @@ public enum ErrorCode {
     CV_BUILDER_SECTION_NOT_FOUND(2017, "Section không tồn tại trong bản nháp", HttpStatus.NOT_FOUND),
     CV_BUILDER_STRICT_VALIDATION_FAILED(2018, "CV chưa đạt yêu cầu để xuất bản hoặc export", HttpStatus.BAD_REQUEST),
     CV_BUILDER_INVALID_CURSOR(2019, "Cursor không hợp lệ", HttpStatus.BAD_REQUEST),
+    CV_BUILDER_VERSION_CONFLICT(2020, "Bản nháp đã được cập nhật ở nơi khác", HttpStatus.CONFLICT),
 
     CANDIDATE_NOT_FOUND(3001, "Ứng viên không tồn tại", HttpStatus.NOT_FOUND);
 

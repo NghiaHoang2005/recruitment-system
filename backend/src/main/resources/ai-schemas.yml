@@ -34,6 +34,12 @@ schemas:
         description: Professional summary or objective from CV
         nullable: true
         example: "Senior software engineer with 5+ years experience"
+
+      headline:
+        type: string
+        description: Target position or headline the candidate is applying for
+        nullable: true
+        example: "Backend Engineer" 
       
       extracted_skills:
         type: array
@@ -169,6 +175,7 @@ json_schemas:
   cv_extract_v3.cv_profile.json: |
     {
       "full_name": "string|null",
+      "headline": "string|null",
       "email": "string|null",
       "phone_number": "string|null",
       "summary": "string|null",

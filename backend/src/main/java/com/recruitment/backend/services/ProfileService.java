@@ -2,6 +2,7 @@ package com.recruitment.backend.services;
 
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
+import com.recruitment.backend.domain.dtos.OpenToWorkUpdateRequest;
 import com.recruitment.backend.domain.dtos.Skill.AddSkillRequest;
 import com.recruitment.backend.domain.entities.Candidate.Candidate;
 import com.recruitment.backend.domain.entities.Candidate.CandidateSkill;
@@ -43,6 +44,7 @@ public class ProfileService {
                 .profilePictureUrl(candidate.getProfilePictureUrl())
                 .openToWork(candidate.getOpenToWork())
                 .skills(skills)
+                .email(candidate.getUser().getEmail())
                 .build();
     }
 
@@ -60,5 +62,16 @@ public class ProfileService {
         candidateRepository.save(candidate);
         CandidateProfileResponse response = getCandidateProfile(userId);
         return response;
+    }
+
+    @Transactional
+    public CandidateProfileResponse updateOpenToWork(UUID userId, OpenToWorkUpdateRequest request) {
+        Candidate candidate = candidateRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
+
+        candidate.setOpenToWork(Boolean.TRUE.equals(request.getOpenToWork()));
+        candidateRepository.save(candidate);
+
+        return getCandidateProfile(userId);
     }
 }

@@ -12,6 +12,7 @@ prompts:
     7. Do NOT invent or hallucinate information
     8. Keep dates in format: YYYY-MM-DD or leave null
     9. Extract as much useful information as possible, not only fixed fields
+    9.1. Always extract the headline (position/title the candidate is applying for) if present
     10. Any information not covered by fixed fields MUST be stored in additional_fields
     11. additional_fields must be a JSON object containing dynamic key-value pairs
     12. Examples for additional_fields: certifications, projects, languages, awards, publications, links, references, achievements, hobbies, expected_salary, work_preferences
@@ -38,6 +39,7 @@ prompts:
     7. KHÔNG bịa đặt hoặc đoán thông tin
     8. Giữ nguyên định dạng ngày: YYYY-MM-DD hoặc null
     9. Trích xuất tối đa thông tin hữu ích, không chỉ các trường cố định
+    9.1. Luôn trích xuất headline (vị trí ứng tuyển/mục tiêu nghề nghiệp) nếu có
     10. Mọi thông tin ngoài các trường cố định BẮT BUỘC đưa vào additional_fields
     11. additional_fields phải là object JSON chứa các cặp key-value động
     12. Ví dụ additional_fields: certifications, projects, languages, awards, publications, links, references, achievements, hobbies, expected_salary, work_preferences

@@ -1,5 +1,6 @@
 package com.recruitment.backend.domain.dtos.Cv;
 
+import com.recruitment.backend.domain.entities.Cv.CvStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,4 +18,5 @@ public class CvItemResponse {
     private String cvName;
     private LocalDateTime uploadedAt;
     private boolean isDefault;
+    private CvStatus aiStatus;
 }

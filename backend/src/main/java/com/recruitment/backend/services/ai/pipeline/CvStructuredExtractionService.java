@@ -273,6 +273,7 @@ public class CvStructuredExtractionService {
         private String targetSchemaDefault() {
             return "{" +
                     "\"full_name\":\"string|null\"," +
+                    "\"headline\":\"string|null\"," +
                     "\"email\":\"string|null\"," +
                     "\"phone_number\":\"string|null\"," +
                     "\"summary\":\"string|null\"," +

@@ -2,9 +2,8 @@ package com.recruitment.backend.controllers;
 
 import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
+import com.recruitment.backend.domain.dtos.OpenToWorkUpdateRequest;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
-import com.recruitment.backend.domain.dtos.Skill.AddSkillRequest;
-import com.recruitment.backend.domain.dtos.Skill.DeleteSkillRequest;
 import com.recruitment.backend.services.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +12,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,5 +35,10 @@ public class ProfileController {
     @PutMapping("/candidate")
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateCandidateProfile(@RequestBody ProfileCandidateUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success(profileService.confirmAndUpdateProfile(getCurrentUserId(), request)));
+    }
+
+    @PutMapping("/candidate/open-to-work")
+    public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateOpenToWork(@RequestBody OpenToWorkUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(profileService.updateOpenToWork(getCurrentUserId(), request)));
     }
 }

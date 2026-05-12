@@ -65,3 +65,9 @@ jwt:
   signerKey: ${SIGNER_KEY}
   valid-duration: 3600 #seconds
   refreshable-duration: 36000 #seconds
+
+supabase:
+  url: ${SUPABASE_URL}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
+  bucket: ${SUPABASE_BUCKET:cv_upload}
+  signed-url-ttl-seconds: ${SUPABASE_SIGNED_URL_TTL_SECONDS:7200}

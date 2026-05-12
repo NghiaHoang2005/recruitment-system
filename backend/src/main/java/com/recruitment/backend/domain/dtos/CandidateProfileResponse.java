@@ -16,4 +16,6 @@ public class CandidateProfileResponse {
     private String profilePictureUrl;
     private Boolean openToWork;
     private List<String> skills;
+
+    private String email;
 }

@@ -14,4 +14,5 @@ public class CvBuilderTemplateResponse {
     private String description;
     private String previewImageUrl;
     private Integer displayOrder;
+    private String layoutSchema;
 }

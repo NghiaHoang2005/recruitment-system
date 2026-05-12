@@ -50,6 +50,10 @@ public class CvBuilderValidationService {
             issues.add(issue("required_missing", severity(false, strictMode), null, "meta", "Meta data is missing", "Meta is auto-generated from template."));
         }
 
+        if (root.path("blocks").isArray()) {
+            return buildResult(issues);
+        }
+
         JsonNode sectionsNode = root.path("sections");
         if (!sectionsNode.isArray()) {
             issues.add(issue("invalid_type", CvBuilderValidationSeverity.ERROR, null, "sections", "Sections must be an array", "Ensure contentJson.sections is an array."));

@@ -8,4 +8,5 @@ import lombok.Setter;
 public class UpdateCvBuilderDraftRequest {
     private String title;
     private String contentJson;
+    private Integer version;
 }

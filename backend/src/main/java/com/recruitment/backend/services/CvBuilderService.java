@@ -138,6 +138,10 @@ public class CvBuilderService {
             throw new AppException(ErrorCode.CV_BUILDER_INVALID_CONTENT);
         }
 
+        if (request.getVersion() != null && !request.getVersion().equals(draft.getVersion())) {
+            throw new AppException(ErrorCode.CV_BUILDER_VERSION_CONFLICT);
+        }
+
         String normalizedContent = normalizeAndValidateContent(request.getContentJson(), draft.getTemplate());
 
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
@@ -286,6 +290,7 @@ public class CvBuilderService {
     private String buildInitialContent(String profileSeed, CvBuilderTemplate template) {
         ObjectNode root = objectMapper.createObjectNode();
         root.set("sections", objectMapper.createArrayNode());
+        root.set("blocks", buildDefaultBlocks(template));
         root.set("meta", buildMetaNode(template));
         if (profileSeed != null && !profileSeed.isBlank()) {
             root.put("profileSeed", profileSeed.trim());
@@ -294,12 +299,163 @@ public class CvBuilderService {
         return writeNode(root);
     }
 
+    private ArrayNode buildDefaultBlocks(CvBuilderTemplate template) {
+        ArrayNode blocks = objectMapper.createArrayNode();
+        JsonNode layoutSchema = readTemplateLayoutSchema(template);
+
+        blocks.add(createSectionBlock(
+                "profile",
+                "Thong tin ca nhan",
+                false,
+                true,
+                new String[][]{
+                        {"fullName", "Ho va ten", "text"},
+                        {"position", "Vi tri ung tuyen", "text"},
+                        {"phone", "So dien thoai", "phone"},
+                        {"email", "Email", "email"},
+                        {"location", "Dia chi", "text"},
+                        {"website", "Website", "url"}
+                },
+                layoutSchema
+        ));
+
+        JsonNode allowedTypesNode = layoutSchema.path("allowedSectionTypes");
+        if (allowedTypesNode.isArray()) {
+            for (JsonNode typeNode : allowedTypesNode) {
+                if (!typeNode.isTextual()) {
+                    continue;
+                }
+                String type = typeNode.asText("custom").trim().toLowerCase();
+                if (type.equals("custom")) {
+                    continue;
+                }
+                blocks.add(createSectionBlock(
+                        type,
+                        capitalize(type),
+                        isRepeatable(type),
+                        false,
+                        resolveDefaultFields(type),
+                        layoutSchema
+                ));
+            }
+        }
+
+        return blocks;
+    }
+
+    private ObjectNode createSectionBlock(
+            String sectionType,
+            String title,
+            boolean repeatable,
+            boolean locked,
+            String[][] fields,
+            JsonNode layoutSchema
+    ) {
+        ObjectNode block = objectMapper.createObjectNode();
+        block.put("id", UUID.randomUUID().toString());
+        block.put("type", "section");
+        block.put("slot", resolveDefaultSlotFromLayout(layoutSchema, sectionType));
+        block.put("visible", true);
+        block.put("locked", locked);
+
+        ObjectNode props = objectMapper.createObjectNode();
+        props.put("sectionType", sectionType);
+        props.put("title", title);
+        props.put("repeatable", repeatable);
+        ArrayNode fieldDefs = objectMapper.createArrayNode();
+        ObjectNode item = objectMapper.createObjectNode();
+        item.put("id", UUID.randomUUID().toString());
+        ObjectNode itemFields = objectMapper.createObjectNode();
+
+        for (String[] field : fields) {
+            ObjectNode fieldDef = objectMapper.createObjectNode();
+            fieldDef.put("key", field[0]);
+            fieldDef.put("label", field[1]);
+            fieldDef.put("type", field[2]);
+            fieldDefs.add(fieldDef);
+            itemFields.put(field[0], "");
+        }
+
+        ArrayNode items = objectMapper.createArrayNode();
+        item.set("fields", itemFields);
+        items.add(item);
+
+        props.set("fields", fieldDefs);
+        props.set("items", items);
+        block.set("props", props);
+        return block;
+    }
+
+    private String resolveDefaultSlotFromLayout(JsonNode layoutSchema, String sectionType) {
+        JsonNode defaultSlotByType = layoutSchema.path("layoutRules").path("defaultSlotByType");
+        if (defaultSlotByType.isObject()) {
+            JsonNode mapped = defaultSlotByType.path(sectionType);
+            if (!mapped.isMissingNode() && !mapped.isNull() && !mapped.asText().isBlank()) {
+                return mapped.asText();
+            }
+        }
+        return DEFAULT_SLOT;
+    }
+
+    private boolean isRepeatable(String sectionType) {
+        return switch (sectionType) {
+            case "experience", "education", "project", "certification" -> true;
+            default -> false;
+        };
+    }
+
+    private String[][] resolveDefaultFields(String sectionType) {
+        return switch (sectionType) {
+            case "profile" -> new String[][]{
+                    {"fullName", "Ho va ten", "text"},
+                    {"position", "Vi tri ung tuyen", "text"},
+                    {"phone", "So dien thoai", "phone"},
+                    {"email", "Email", "email"},
+                    {"location", "Dia chi", "text"},
+                    {"website", "Website", "url"}
+            };
+            case "summary" -> new String[][]{{"content", "Noi dung", "textarea"}};
+            case "experience" -> new String[][]{
+                    {"company", "Ten cong ty", "text"},
+                    {"role", "Vi tri", "text"},
+                    {"startDate", "Bat dau", "month"},
+                    {"endDate", "Ket thuc", "month"},
+                    {"summary", "Mo ta", "textarea"}
+            };
+            case "education" -> new String[][]{
+                    {"school", "Ten truong", "text"},
+                    {"degree", "Nganh hoc", "text"},
+                    {"startDate", "Bat dau", "month"},
+                    {"endDate", "Ket thuc", "month"},
+                    {"description", "Mo ta", "textarea"}
+            };
+            case "skills" -> new String[][]{{"skills", "Ky nang", "textarea"}};
+            case "project" -> new String[][]{
+                    {"name", "Ten du an", "text"},
+                    {"role", "Vai tro", "text"},
+                    {"description", "Mo ta", "textarea"},
+                    {"technologies", "Cong nghe", "text"},
+                    {"url", "Lien ket", "url"}
+            };
+            case "certification" -> new String[][]{
+                    {"name", "Ten chung chi", "text"},
+                    {"issuer", "Don vi cap", "text"},
+                    {"issueDate", "Ngay cap", "month"}
+            };
+            default -> new String[][]{{"content", "Noi dung", "textarea"}};
+        };
+    }
+
     private String normalizeAndValidateContent(String contentJson, CvBuilderTemplate template) {
         ObjectNode root = readContentAsObjectNode(contentJson);
-        ArrayNode sections = ensureSectionsArray(root);
-
         ensureMetaNode(root, template);
 
+        JsonNode blocksNode = root.path("blocks");
+        if (blocksNode.isArray()) {
+            return writeNode(root);
+        }
+
+        ArrayNode sections = ensureSectionsArray(root);
         refreshSectionOrder(sections, template);
         return writeNode(root);
     }
@@ -555,6 +711,7 @@ public class CvBuilderService {
                 .description(template.getDescription())
                 .previewImageUrl(template.getPreviewImageUrl())
                 .displayOrder(template.getDisplayOrder())
+                .layoutSchema(template.getLayoutSchema())
                 .build();
     }
 

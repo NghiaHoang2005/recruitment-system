@@ -12,7 +12,7 @@ import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.repositories.CandidateRepository;
 import com.recruitment.backend.repositories.CvRepository;
-import com.recruitment.backend.services.storage.FirebaseStorageService;
+import com.recruitment.backend.services.storage.SupabaseStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,7 +32,7 @@ public class CvService {
     private final AsyncCvProcessor asyncCvProcessor;
     private final CvRepository cvRepository;
     private final CandidateRepository candidateRepository;
-    private final FirebaseStorageService firebaseStorageService;
+    private final SupabaseStorageService storageService;
 
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "application/pdf",
@@ -63,8 +63,8 @@ public class CvService {
            validateCvFile(request.getFile());
 
            String currentMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy_MM"));
-           String folder = "cv_uploads/" + currentMonth;
-           String filePath = firebaseStorageService.uploadCv(request.getFile(), folder);
+           String folder = "cv_upload/" + currentMonth;
+            String filePath = storageService.uploadCv(request.getFile(), folder);
 
            boolean hasNoCv = cvRepository.findByCandidateUserIdOrderByIsDefaultDescUploadedAtDesc(currentUserId).isEmpty();
 
@@ -77,7 +77,7 @@ public class CvService {
             newCv.setCandidate(candidateRef);
             newCv = cvRepository.save(newCv);
 
-           String signedUrlForAi = firebaseStorageService.getPresignedUrl(filePath);
+            String signedUrlForAi = storageService.getPresignedUrl(filePath);
            asyncCvProcessor.processCvInBackground(newCv.getId(), signedUrlForAi);
 
            return CvResponse.builder()
@@ -123,7 +123,7 @@ public class CvService {
         }
 
         try {
-            String signedUrl = firebaseStorageService.getPresignedUrl(cv.getFileUrl());
+            String signedUrl = storageService.getPresignedUrl(cv.getFileUrl());
 
             return signedUrl;
 
@@ -167,7 +167,7 @@ public class CvService {
         log.debug("Cleared previous extraction data for CV: {}, retry count: {}", cvId, cv.getRetryCount());
 
         try {
-            String signedUrl = firebaseStorageService.getPresignedUrl(cv.getFileUrl());
+            String signedUrl = storageService.getPresignedUrl(cv.getFileUrl());
             log.debug("Generated presigned URL for CV retry: {}", cvId);
 
             asyncCvProcessor.processCvInBackground(cvId, signedUrl);
@@ -217,6 +217,7 @@ public class CvService {
                         .cvName(cv.getCvName())
                         .uploadedAt(cv.getUploadedAt())
                         .isDefault(cv.getIsDefault())
+                        .aiStatus(cv.getAiStatus())
                         .build())
                 .toList();
     }
@@ -250,7 +251,7 @@ public class CvService {
         }
 
         try {
-            firebaseStorageService.deleteFile(cv.getFileUrl());
+            storageService.deleteFile(cv.getFileUrl());
         } catch (Exception e) {
             log.error("Lỗi khi xóa file CV từ Firebase Storage: {}", cv.getFileUrl(), e);
         }
