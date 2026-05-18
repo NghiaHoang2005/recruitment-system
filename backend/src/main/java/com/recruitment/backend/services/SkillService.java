@@ -12,9 +12,8 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,21 +24,34 @@ public class SkillService {
     private final CandidateRepository candidateRepository;
 
     public List<Skill> processAndGetSkills(List<String> skillNames) {
-        List<Skill> finalSkills = new ArrayList<>();
-
-        for (String name : skillNames) {
-            String normalizedName = name.trim().toLowerCase();
-
-            Skill skill = skillRepository.findByNameIgnoreCase(normalizedName)
-                    .orElseGet(() -> {
-                        Skill newSkill = new Skill();
-                        newSkill.setName(name.trim());
-                        newSkill.setIsVerified(true);
-                        return skillRepository.save(newSkill);
-                    });
-            finalSkills.add(skill);
+        List<String> normalizedNames = skillNames.stream()
+                .map(s -> s.trim().toLowerCase())
+                .distinct()
+                .toList();
+        List<Skill> existingSkills =
+                skillRepository.findAllByNameInIgnoreCase(normalizedNames);
+        Map<String, Skill> existingMap = existingSkills.stream()
+                .collect(Collectors.toMap(
+                        s -> s.getName().toLowerCase(),
+                        Function.identity()
+                ));
+        List<Skill> newSkills = normalizedNames.stream()
+                .filter(name -> !existingMap.containsKey(name))
+                .map(name -> {
+                    Skill skill = new Skill();
+                    skill.setName(name);
+                    skill.setIsVerified(true);
+                    return skill;
+                })
+                .toList();
+        if (!newSkills.isEmpty()) {
+            skillRepository.saveAll(newSkills);
         }
-        return finalSkills;
+
+        List<Skill> result = new ArrayList<>(existingSkills);
+        result.addAll(newSkills);
+
+        return result;
     }
 
     @Transactional
@@ -48,14 +60,29 @@ public class SkillService {
         Candidate candidate = candidateRepository.findById(candidateId)
                 .orElseThrow(() -> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
 
-        List<Skill> validSkills = processAndGetSkills(rawSkillNames);
+        List<Skill> newSkills = processAndGetSkills(rawSkillNames);
 
-        candidateSkillRepository.deleteAllByCandidateId(candidateId);
+        List<CandidateSkill> currentMappings =
+                candidateSkillRepository.findByCandidateUserId(candidateId);
 
-        List<CandidateSkill> newMappings = validSkills.stream()
+        Set<UUID> currentSkillIds = currentMappings.stream()
+                .map(cs -> cs.getSkill().getId())
+                .collect(Collectors.toSet());
+
+        Set<UUID> newSkillIds = newSkills.stream()
+                .map(Skill::getId)
+                .collect(Collectors.toSet());
+        List<CandidateSkill> toDelete = currentMappings.stream()
+                .filter(cs -> !newSkillIds.contains(cs.getSkill().getId()))
+                .toList();
+
+        candidateSkillRepository.deleteAll(toDelete);
+
+        List<CandidateSkill> toInsert = newSkills.stream()
+                .filter(skill -> !currentSkillIds.contains(skill.getId()))
                 .map(skill -> new CandidateSkill(candidate, skill))
-                .collect(Collectors.toList());
+                .toList();
 
-        candidateSkillRepository.saveAll(newMappings);
+        candidateSkillRepository.saveAll(toInsert);
     }
 }

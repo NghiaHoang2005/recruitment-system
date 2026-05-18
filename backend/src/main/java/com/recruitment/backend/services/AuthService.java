@@ -12,6 +12,7 @@ import com.recruitment.backend.domain.entities.User;
 import com.recruitment.backend.domain.enums.AccountType;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
+import com.recruitment.backend.notifications.services.NotificationFacade;
 import com.recruitment.backend.repositories.InvalidatedTokenRepository;
 import com.recruitment.backend.repositories.RoleRepository;
 import com.recruitment.backend.repositories.UserRepository;
@@ -48,6 +49,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
+    private final NotificationFacade notificationFacade;
 
     @Transactional
     public AuthResponse register(RegisterRequest request, AccountType accountType) {
@@ -61,6 +63,7 @@ public class AuthService {
                 .role(role)
                 .build();
         userRepository.save(user);
+        notificationFacade.notifyUserRegistered(user.getEmail(), accountType.name());
         var jwtToken = generateToken(user);
         return AuthResponse.builder()
                 .token(jwtToken)

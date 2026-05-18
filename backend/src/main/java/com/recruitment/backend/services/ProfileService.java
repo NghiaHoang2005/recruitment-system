@@ -60,8 +60,7 @@ public class ProfileService {
         }
 
         candidateRepository.save(candidate);
-        CandidateProfileResponse response = getCandidateProfile(userId);
-        return response;
+        return getCandidateProfile(userId);
     }
 
     @Transactional
