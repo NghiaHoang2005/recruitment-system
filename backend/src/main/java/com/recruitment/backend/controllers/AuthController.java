@@ -20,6 +20,12 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @PostMapping("/register/request-otp")
+    public ResponseEntity<ApiResponse<String>> requestRegisterOtp(@RequestBody RegisterOtpRequest request) {
+        authService.requestRegisterOtp(request);
+        return ResponseEntity.ok(ApiResponse.success("OTP sent"));
+    }
+
     @PostMapping("/register/candidate")
     public ResponseEntity<ApiResponse<AuthResponse>> registerCandidate(@RequestBody RegisterRequest request) {
         return ResponseEntity.ok(ApiResponse.success(authService.register(request, AccountType.CANDIDATE)));
@@ -34,6 +40,23 @@ public class AuthController {
     @PostMapping("/authenticate")
     public ResponseEntity<ApiResponse<AuthResponse>> authenticate(@RequestBody AuthRequest request) {
         return ResponseEntity.ok(ApiResponse.success(authService.authenticate(request)));
+    }
+
+    @PostMapping("/forgot-password/request-otp")
+    public ResponseEntity<ApiResponse<String>> requestForgotPasswordOtp(@RequestBody ForgotPasswordOtpRequest request) {
+        authService.requestForgotPasswordOtp(request);
+        return ResponseEntity.ok(ApiResponse.success("OTP sent"));
+    }
+    @PostMapping("/forgot-password/verify-otp")
+    public ResponseEntity<ApiResponse<String>> verifyForgotPasswordOtp(@RequestBody VerifyForgotPasswordOtpRequest request) {
+        String resetToken = authService.verifyForgotPasswordOtp(request);
+        return ResponseEntity.ok(ApiResponse.success(resetToken));
+    }
+
+    @PostMapping("/forgot-password/reset")
+    public ResponseEntity<ApiResponse<String>> resetPassword(@RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("Password reset successfully"));
     }
 
     @PostMapping("/introspect")

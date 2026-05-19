@@ -4,7 +4,6 @@ import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.notifications.dto.requests.ApplicationResultNotificationRequest;
 import com.recruitment.backend.notifications.dto.requests.ApplicationSubmittedNotificationRequest;
 import com.recruitment.backend.notifications.dto.requests.JobMatchNotificationRequest;
-import com.recruitment.backend.notifications.dto.requests.SendOtpNotificationRequest;
 import com.recruitment.backend.notifications.services.NotificationFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,12 +15,6 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class NotificationController {
     private final NotificationFacade notificationFacade;
-
-    @PostMapping("/otp")
-    public ResponseEntity<ApiResponse<String>> sendOtp(@RequestBody @Valid SendOtpNotificationRequest request) {
-        notificationFacade.requestOtp(request.getEmail(), request.getOtpCode(), request.getTtlMinutes(), request.getIdempotencyKey());
-        return ResponseEntity.ok(ApiResponse.success("OTP notification queued"));
-    }
 
     @PostMapping("/application-submitted")
     public ResponseEntity<ApiResponse<String>> notifyApplicationSubmitted(@RequestBody @Valid ApplicationSubmittedNotificationRequest request) {

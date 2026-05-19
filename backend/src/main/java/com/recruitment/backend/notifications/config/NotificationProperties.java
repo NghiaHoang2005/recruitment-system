@@ -13,7 +13,7 @@ public class NotificationProperties {
     private Integer otpTtlMinutes = 5;
     private Integer outboxBatchSize = 50;
     private Integer sendBatchSize = 50;
-    private String fromAddress = "no-reply@recruitment.local";
+    private String fromAddress = "no-reply@recruitment.curator";
     private Mail mail = new Mail();
 
     @Getter
