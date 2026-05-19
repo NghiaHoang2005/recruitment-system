@@ -3,7 +3,6 @@ package com.recruitment.backend.services;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
 import com.recruitment.backend.domain.dtos.OpenToWorkUpdateRequest;
-import com.recruitment.backend.domain.dtos.Skill.AddSkillRequest;
 import com.recruitment.backend.domain.entities.Candidate.Candidate;
 import com.recruitment.backend.domain.entities.Candidate.CandidateSkill;
 import com.recruitment.backend.exceptions.AppException;

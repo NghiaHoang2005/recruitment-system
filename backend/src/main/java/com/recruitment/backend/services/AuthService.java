@@ -68,6 +68,8 @@ public class AuthService {
         return AuthResponse.builder()
                 .token(jwtToken)
                 .authenticated(true)
+                .accountType(accountType.name())
+                .userId(user.getId().toString())
                 .build();
     }
 
@@ -83,6 +85,8 @@ public class AuthService {
         return AuthResponse.builder()
                 .token(token)
                 .authenticated(true)
+                .accountType(user.getRole().getName())
+                .userId(user.getId().toString())
                 .build();
     }
 
@@ -208,6 +212,8 @@ public class AuthService {
         return AuthResponse.builder()
                 .token(token)
                 .authenticated(true)
+                .accountType(user.getRole().getName())
+                .userId(user.getId().toString())
                 .build();
     }
 }

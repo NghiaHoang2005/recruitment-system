@@ -8,7 +8,10 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface CompanyMemberMapper {
     @Mapping(target = "companyId", source = "company.id")
+    @Mapping(target = "companyName", source = "company.name")
     @Mapping(target = "userId", source = "user.id")
+    @Mapping(target = "email", source = "user.email")
+    @Mapping(target = "fullName", ignore = true)
     @Mapping(
             target = "reviewedBy",
             expression = "java(companyMember.getReviewedBy() != null ? companyMember.getReviewedBy().getId().toString() : null)"

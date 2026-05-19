@@ -1,15 +1,14 @@
 package com.recruitment.backend.domain.dtos;
 
-import lombok.AllArgsConstructor;
+import com.recruitment.backend.domain.enums.CompanyRole;
+import com.recruitment.backend.domain.enums.CompanyStatus;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class CompanyRequest {
+public class CompanyDashboardResponse {
+    private String companyId;
     private String name;
     private String website;
     private String email;
@@ -22,4 +21,10 @@ public class CompanyRequest {
     private int companySize;
     private String taxCode;
     private String businessLicense;
+    private CompanyStatus status;
+    private CompanyRole currentUserCompanyRole;
+    private long memberCount;
+    private long openJobCount;
+    private long pipelineCandidateCount;
+    private long pendingRequestCount;
 }

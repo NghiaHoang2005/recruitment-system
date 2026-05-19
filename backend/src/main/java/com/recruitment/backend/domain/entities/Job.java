@@ -1,5 +1,6 @@
 package com.recruitment.backend.domain.entities;
 
+import com.recruitment.backend.domain.enums.JobStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,6 +40,10 @@ public class Job {
     @ManyToOne
     @JoinColumn(name = "company_id")
     private Company company;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private JobStatus status = JobStatus.DRAFT;
 
     private LocalDateTime createdAt;
 

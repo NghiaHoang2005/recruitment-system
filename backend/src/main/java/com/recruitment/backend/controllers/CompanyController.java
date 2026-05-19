@@ -6,6 +6,8 @@ import com.recruitment.backend.services.CompanyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/companies")
 @RequiredArgsConstructor
@@ -26,6 +28,41 @@ public class CompanyController {
                 .build();
     }
 
+    @GetMapping("/me")
+    public ApiResponse<CompanyDashboardResponse> getMyCompany(){
+        return ApiResponse.<CompanyDashboardResponse>builder()
+                .result(companyService.getMyCompany())
+                .build();
+    }
+
+    @PutMapping("/{companyId}")
+    public ApiResponse<CompanyDashboardResponse> updateCompany(@PathVariable String companyId, @RequestBody CompanyRequest request){
+        return ApiResponse.<CompanyDashboardResponse>builder()
+                .result(companyService.updateCompany(companyId, request))
+                .build();
+    }
+
+    @GetMapping("/my-memberships")
+    public ApiResponse<List<CompanyMemberResponse>> getMyMemberships(){
+        return ApiResponse.<List<CompanyMemberResponse>>builder()
+                .result(companyService.getMyApprovedMemberships())
+                .build();
+    }
+
+    @GetMapping("/{companyId}/members/pending")
+    public ApiResponse<List<CompanyMemberResponse>> getPendingRequests(@PathVariable String companyId){
+        return ApiResponse.<List<CompanyMemberResponse>>builder()
+                .result(companyService.getPendingRequests(companyId))
+                .build();
+    }
+
+    @GetMapping("/{companyId}/members")
+    public ApiResponse<List<CompanyMemberResponse>> getMembers(@PathVariable String companyId){
+        return ApiResponse.<List<CompanyMemberResponse>>builder()
+                .result(companyService.getCompanyMembers(companyId))
+                .build();
+    }
+
     @PostMapping("/{companyId}/members/{userId}/approve")
     public ApiResponse<CompanyMemberResponse> approveRequest(@PathVariable String companyId, @PathVariable String userId){
         return ApiResponse.<CompanyMemberResponse>builder()
@@ -37,6 +74,33 @@ public class CompanyController {
     public ApiResponse<CompanyMemberResponse> rejectRequest(@PathVariable String companyId, @PathVariable String userId){
         return ApiResponse.<CompanyMemberResponse>builder()
                 .result(companyService.processRequest(companyId, userId, JoinStatus.REJECTED))
+                .build();
+    }
+
+    @DeleteMapping("/{companyId}/members/{userId}")
+    public ApiResponse<Void> removeMember(@PathVariable String companyId, @PathVariable String userId){
+        companyService.removeMember(companyId, userId);
+        return ApiResponse.<Void>builder().build();
+    }
+
+    @PostMapping("/{companyId}/invites")
+    public ApiResponse<CompanyInviteResponse> inviteRecruiter(@PathVariable String companyId, @RequestBody CompanyInviteRequest request){
+        return ApiResponse.<CompanyInviteResponse>builder()
+                .result(companyService.inviteRecruiter(companyId, request))
+                .build();
+    }
+
+    @GetMapping("/{companyId}/invites")
+    public ApiResponse<List<CompanyInviteResponse>> getInvites(@PathVariable String companyId){
+        return ApiResponse.<List<CompanyInviteResponse>>builder()
+                .result(companyService.getInvites(companyId))
+                .build();
+    }
+
+    @DeleteMapping("/{companyId}/invites/{inviteId}")
+    public ApiResponse<CompanyInviteResponse> cancelInvite(@PathVariable String companyId, @PathVariable String inviteId){
+        return ApiResponse.<CompanyInviteResponse>builder()
+                .result(companyService.cancelInvite(companyId, inviteId))
                 .build();
     }
 }

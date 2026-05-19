@@ -1,5 +1,6 @@
 package com.recruitment.backend.domain.dtos;
 
+import com.recruitment.backend.domain.enums.JobStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +20,9 @@ public class JobDTO {
     private String requirements;
     private String location;
     private String salaryRange;
+    private UUID companyId;
     private String companyName;
+    private JobStatus status;
     private LocalDateTime createdAt;
     private UUID recruiterId;
 }
