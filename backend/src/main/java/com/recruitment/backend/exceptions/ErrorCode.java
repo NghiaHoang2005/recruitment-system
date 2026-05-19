@@ -41,7 +41,10 @@ public enum ErrorCode {
     CV_BUILDER_INVALID_CURSOR(2019, "Cursor không hợp lệ", HttpStatus.BAD_REQUEST),
     CV_BUILDER_VERSION_CONFLICT(2020, "Bản nháp đã được cập nhật ở nơi khác", HttpStatus.CONFLICT),
 
-    CANDIDATE_NOT_FOUND(3001, "Ứng viên không tồn tại", HttpStatus.NOT_FOUND);
+    CANDIDATE_NOT_FOUND(3001, "Ứng viên không tồn tại", HttpStatus.NOT_FOUND),
+    OTP_INVALID_OR_EXPIRED(3002, "OTP không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
+    OTP_REQUIRED(3003, "Vui lòng nhập OTP", HttpStatus.BAD_REQUEST),
+    RESET_TOKEN_INVALID_OR_EXPIRED(3004, "Reset token không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

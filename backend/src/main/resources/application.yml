@@ -32,16 +32,25 @@ spring:
       max-file-size: 5MB
       max-request-size: 5MB
   mail:
-    host: ${MAIL_HOST:localhost}
+    host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:1025}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    username: ${MAIL_USERNAME:hoangquangnghia123@gmail.com}
+    password: ${MAIL_PASSWORD:aaaa aaaa aaaa}
     properties:
       mail:
         smtp:
           auth: ${MAIL_SMTP_AUTH:false}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS:false}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+      timeout: 6000
 
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME}
@@ -77,6 +86,9 @@ jwt:
   valid-duration: 3600 #seconds
   refreshable-duration: 36000 #seconds
 
+auth:
+  reset-token-ttl-minutes: ${AUTH_RESET_TOKEN_TTL_MINUTES:15}
+
 supabase:
   url: ${SUPABASE_URL}
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
@@ -85,7 +97,7 @@ supabase:
 
 notification:
   locale: ${NOTIFICATION_LOCALE:vi}
-  from-address: ${NOTIFICATION_FROM_ADDRESS:no-reply@recruitment.local}
+  from-address: ${NOTIFICATION_FROM_ADDRESS:no-reply@recruitment.curator}
   max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:3}
   otp-ttl-minutes: ${NOTIFICATION_OTP_TTL_MINUTES:5}
   outbox-batch-size: ${NOTIFICATION_OUTBOX_BATCH_SIZE:50}

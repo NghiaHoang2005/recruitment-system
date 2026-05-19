@@ -10,6 +10,7 @@ import com.recruitment.backend.domain.entities.InvalidatedToken;
 import com.recruitment.backend.domain.entities.Role;
 import com.recruitment.backend.domain.entities.User;
 import com.recruitment.backend.domain.enums.AccountType;
+import com.recruitment.backend.domain.enums.OtpPurpose;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.notifications.services.NotificationFacade;
@@ -50,12 +51,30 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
     private final NotificationFacade notificationFacade;
+    private final OtpService otpService;
+    private final PasswordResetTokenService passwordResetTokenService;
 
-    @Transactional
-    public AuthResponse register(RegisterRequest request, AccountType accountType) {
+    public void requestRegisterOtp(RegisterOtpRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new AppException(ErrorCode.USER_EXISTED);
         }
+        otpService.generateAndSendOtp(request.getEmail(), OtpPurpose.REGISTER_VERIFICATION);
+    }
+
+    public void requestForgotPasswordOtp(ForgotPasswordOtpRequest request) {
+        userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        otpService.generateAndSendOtp(request.getEmail(), OtpPurpose.PASSWORD_RESET);
+    }
+
+    @Transactional
+    public AuthResponse register(RegisterRequest request, AccountType accountType) {
+        if (request.getOtpCode() == null || request.getOtpCode().isBlank()) {
+            throw new AppException(ErrorCode.OTP_REQUIRED);
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new AppException(ErrorCode.USER_EXISTED);
+        }
+        otpService.verifyAndConsumeOtp(request.getEmail(), OtpPurpose.REGISTER_VERIFICATION, request.getOtpCode());
         Role role = roleRepository.findById(accountType.name()).orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
         var user = User.builder()
                 .email(request.getEmail())
@@ -71,6 +90,22 @@ public class AuthService {
                 .accountType(accountType.name())
                 .userId(user.getId().toString())
                 .build();
+    }
+
+    public String verifyForgotPasswordOtp(VerifyForgotPasswordOtpRequest request) {
+        if (request.getOtp() == null || request.getOtp().isBlank()) {
+            throw new AppException(ErrorCode.OTP_REQUIRED);
+        }
+        userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        otpService.verifyAndConsumeOtp(request.getEmail(), OtpPurpose.PASSWORD_RESET, request.getOtp());
+        return passwordResetTokenService.generateToken(request.getEmail());
+    }
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        User user = userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        passwordResetTokenService.verifyAndConsumeToken(request.getEmail(), request.getResetToken());
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
     }
 
     public AuthResponse authenticate(AuthRequest request) {
