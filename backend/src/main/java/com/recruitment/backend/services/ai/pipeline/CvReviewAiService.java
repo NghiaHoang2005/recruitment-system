@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recruitment.backend.domain.entities.Cv.Cv;
 import com.recruitment.backend.domain.entities.Job;
+import com.recruitment.backend.domain.entities.JobRequirementItem;
+import com.recruitment.backend.domain.entities.JobRequirementSection;
 import com.recruitment.backend.services.ai.config.AiConfigLoader;
 import com.recruitment.backend.services.ai.config.AiProperties;
 import com.recruitment.backend.services.ai.model.StructuredExtractionRequest;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -71,7 +74,7 @@ public class CvReviewAiService {
         vars.put("cv_parsed_json", cv.getParsedData() == null ? "{}" : cv.getParsedData());
         vars.put("job_title", job == null ? "" : safe(job.getTitle()));
         vars.put("job_description", job == null ? "" : safe(job.getDescription()));
-        vars.put("job_requirements", job == null ? "" : safe(job.getRequirements()));
+        vars.put("job_requirements", job == null ? "" : buildRequirementText(job));
         vars.put("job_location", job == null ? "" : safe(job.getLocation()));
 
         String task = job == null ? "cv_review_general" : "cv_review_job_match";
@@ -141,6 +144,27 @@ public class CvReviewAiService {
 
     private String safe(String input) {
         return input == null ? "" : input;
+    }
+
+    private String buildRequirementText(Job job) {
+        List<JobRequirementSection> sections = job.getRequirementSections();
+        if (sections == null || sections.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (JobRequirementSection section : sections) {
+            builder.append(section.getTitle())
+                    .append(" (")
+                    .append(section.getSectionType())
+                    .append("):\n");
+            if (section.getItems() != null) {
+                for (JobRequirementItem item : section.getItems()) {
+                    builder.append("- ").append(item.getContent()).append("\n");
+                }
+            }
+        }
+        return builder.toString().trim();
     }
 
     private String reviewSchemaFallback() {

@@ -24,6 +24,12 @@ public class JobController {
         return ResponseEntity.ok(ApiResponse.success(jobService.createJob(jobDTO, email)));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<JobDTO>> updateJob(@PathVariable UUID id, @RequestBody JobDTO jobDTO, Authentication authentication) {
+        String email = authentication.getName();
+        return ResponseEntity.ok(ApiResponse.success(jobService.updateJob(id, jobDTO, email)));
+    }
+
     @GetMapping
     public ResponseEntity<ApiResponse<List<JobDTO>>> getAllJobs() {
         return ResponseEntity.ok(ApiResponse.success(jobService.getAllJobs()));

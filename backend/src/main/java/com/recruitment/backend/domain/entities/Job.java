@@ -1,6 +1,9 @@
 package com.recruitment.backend.domain.entities;
 
+import com.recruitment.backend.domain.enums.EmploymentType;
+import com.recruitment.backend.domain.enums.JobLevel;
 import com.recruitment.backend.domain.enums.JobStatus;
+import com.recruitment.backend.domain.enums.WorkMode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,6 +12,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -30,12 +35,31 @@ public class Job {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String requirements;
+    private String workingTime;
 
     private String location;
 
-    private String salaryRange;
+    @Enumerated(EnumType.STRING)
+    private EmploymentType employmentType;
+
+    @Enumerated(EnumType.STRING)
+    private WorkMode workMode;
+
+    @Enumerated(EnumType.STRING)
+    private JobLevel level;
+
+    private Integer minSalary;
+
+    private Integer maxSalary;
+
+    private String currency;
+
+    @Builder.Default
+    private Boolean salaryNegotiable = false;
+
+    private Integer headcount;
+
+    private LocalDateTime deadline;
 
     @ManyToOne
     @JoinColumn(name = "company_id")
@@ -49,9 +73,18 @@ public class Job {
 
     private LocalDateTime updatedAt;
 
+    private LocalDateTime publishedAt;
+
+    private LocalDateTime closedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recruiter_id", nullable = false)
     private User recruiter;
+
+    @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC")
+    @Builder.Default
+    private List<JobRequirementSection> requirementSections = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
