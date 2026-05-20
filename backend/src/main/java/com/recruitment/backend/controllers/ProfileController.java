@@ -4,6 +4,7 @@ import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
 import com.recruitment.backend.domain.dtos.OpenToWorkUpdateRequest;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
+import com.recruitment.backend.domain.dtos.RegisterCandidateProfileRequest;
 import com.recruitment.backend.services.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,12 @@ public class ProfileController {
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> getCandidateProfile() {
         CandidateProfileResponse response = profileService.getCandidateProfile(getCurrentUserId());
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/candidate")
+    public ResponseEntity<ApiResponse<CandidateProfileResponse>> createCandidateProfile(
+            @RequestBody RegisterCandidateProfileRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(profileService.createCandidateProfile(getCurrentUserId(), request)));
     }
 
     @PutMapping("/candidate")

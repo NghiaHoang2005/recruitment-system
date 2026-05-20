@@ -1,14 +1,18 @@
 package com.recruitment.backend.services;
 
-import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
 import com.recruitment.backend.domain.dtos.OpenToWorkUpdateRequest;
+import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
+import com.recruitment.backend.domain.dtos.RegisterCandidateProfileRequest;
 import com.recruitment.backend.domain.entities.Candidate.Candidate;
 import com.recruitment.backend.domain.entities.Candidate.CandidateSkill;
+import com.recruitment.backend.domain.entities.User;
+import com.recruitment.backend.domain.enums.AccountType;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.repositories.CandidateRepository;
 import com.recruitment.backend.repositories.CandidateSkillRepository;
+import com.recruitment.backend.repositories.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,6 +28,7 @@ public class ProfileService {
     private final CandidateRepository candidateRepository;
     private final SkillService skillService;
     private final CandidateSkillRepository candidateSkillRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public CandidateProfileResponse getCandidateProfile(UUID userId) {
@@ -45,6 +50,30 @@ public class ProfileService {
                 .skills(skills)
                 .email(candidate.getUser().getEmail())
                 .build();
+    }
+
+    @Transactional
+    public CandidateProfileResponse createCandidateProfile(UUID userId, RegisterCandidateProfileRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (!AccountType.CANDIDATE.name().equals(user.getRole().getName())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (candidateRepository.existsById(userId)) {
+            throw new AppException(ErrorCode.CANDIDATE_PROFILE_ALREADY_EXISTS);
+        }
+
+        Candidate candidate = Candidate.builder()
+                .userId(user.getId())
+                .user(user)
+                .fullName(request.getFullName())
+                .openToWork(false)
+                .build();
+
+        candidateRepository.save(candidate);
+        return getCandidateProfile(userId);
     }
 
     @Transactional

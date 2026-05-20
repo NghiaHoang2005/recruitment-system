@@ -46,6 +46,7 @@ public class NotificationSendProcessor {
         }
 
         EmailProvider provider = emailProviderFactory.getProvider();
+        log.info("Processing notification {} with provider {}", notification.getId(), provider.providerName());
         Integer nextAttempt = notification.getAttemptCount() + 1;
 
         notification.setStatus(NotificationStatus.PROCESSING);
@@ -59,6 +60,7 @@ public class NotificationSendProcessor {
             Map<String, Object> payload = readPayload(notification.getPayloadJson());
             RenderedTemplate renderedTemplate = templateRenderer.render(template.getSubjectTemplate(), template.getBodyTemplate(), payload);
 
+            log.info("Sending notification {} to {} with subject '{}'", notification.getId(), notification.getRecipientEmail(), renderedTemplate.getSubject());
             provider.send(EmailMessage.builder()
                     .to(notification.getRecipientEmail())
                     .subject(renderedTemplate.getSubject())

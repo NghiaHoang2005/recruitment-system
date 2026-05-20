@@ -54,16 +54,24 @@ public class AuthService {
     private final OtpService otpService;
     private final PasswordResetTokenService passwordResetTokenService;
 
-    public void requestRegisterOtp(RegisterOtpRequest request) {
+    public OtpSentResponse requestRegisterOtp(RegisterOtpRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new AppException(ErrorCode.USER_EXISTED);
         }
-        otpService.generateAndSendOtp(request.getEmail(), OtpPurpose.REGISTER_VERIFICATION);
+        otpService.requestOtp(request.getEmail(), OtpPurpose.REGISTER_VERIFICATION);
+        return OtpSentResponse.builder()
+                .resendCooldownSeconds(otpService.getOtpResendCooldownSeconds())
+                .ttlSeconds(otpService.getOtpTtlSeconds())
+                .build();
     }
 
-    public void requestForgotPasswordOtp(ForgotPasswordOtpRequest request) {
+    public OtpSentResponse requestForgotPasswordOtp(ForgotPasswordOtpRequest request) {
         userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        otpService.generateAndSendOtp(request.getEmail(), OtpPurpose.PASSWORD_RESET);
+        otpService.requestOtp(request.getEmail(), OtpPurpose.PASSWORD_RESET);
+        return OtpSentResponse.builder()
+                .resendCooldownSeconds(otpService.getOtpResendCooldownSeconds())
+                .ttlSeconds(otpService.getOtpTtlSeconds())
+                .build();
     }
 
     @Transactional

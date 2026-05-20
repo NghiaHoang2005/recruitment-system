@@ -44,7 +44,9 @@ public enum ErrorCode {
     CANDIDATE_NOT_FOUND(3001, "Ứng viên không tồn tại", HttpStatus.NOT_FOUND),
     OTP_INVALID_OR_EXPIRED(3002, "OTP không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
     OTP_REQUIRED(3003, "Vui lòng nhập OTP", HttpStatus.BAD_REQUEST),
-    RESET_TOKEN_INVALID_OR_EXPIRED(3004, "Reset token không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST);
+    RESET_TOKEN_INVALID_OR_EXPIRED(3004, "Reset token không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
+    OTP_TOO_MANY_REQUESTS(3005, "Bạn đã yêu cầu OTP quá thường xuyên. Vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS),
+    CANDIDATE_PROFILE_ALREADY_EXISTS(3006, "Thông tin ứng viên đã tồn tại", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

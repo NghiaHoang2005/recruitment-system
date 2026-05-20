@@ -21,9 +21,12 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register/request-otp")
-    public ResponseEntity<ApiResponse<String>> requestRegisterOtp(@RequestBody RegisterOtpRequest request) {
-        authService.requestRegisterOtp(request);
-        return ResponseEntity.ok(ApiResponse.success("OTP sent"));
+    public ResponseEntity<ApiResponse<OtpSentResponse>> requestRegisterOtp(@RequestBody RegisterOtpRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(authService.requestRegisterOtp(request)));
+    }
+    @PostMapping("/register/resend-otp")
+    public ResponseEntity<ApiResponse<OtpSentResponse>> resendRegisterOtp(@RequestBody RegisterOtpRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(authService.requestRegisterOtp(request)));
     }
 
     @PostMapping("/register/candidate")
@@ -43,9 +46,12 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password/request-otp")
-    public ResponseEntity<ApiResponse<String>> requestForgotPasswordOtp(@RequestBody ForgotPasswordOtpRequest request) {
-        authService.requestForgotPasswordOtp(request);
-        return ResponseEntity.ok(ApiResponse.success("OTP sent"));
+    public ResponseEntity<ApiResponse<OtpSentResponse>> requestForgotPasswordOtp(@RequestBody ForgotPasswordOtpRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(authService.requestForgotPasswordOtp(request)));
+    }
+    @PostMapping("/forgot-password/resend-otp")
+    public ResponseEntity<ApiResponse<OtpSentResponse>> resendForgotPasswordOtp(@RequestBody ForgotPasswordOtpRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(authService.requestForgotPasswordOtp(request)));
     }
     @PostMapping("/forgot-password/verify-otp")
     public ResponseEntity<ApiResponse<String>> verifyForgotPasswordOtp(@RequestBody VerifyForgotPasswordOtpRequest request) {

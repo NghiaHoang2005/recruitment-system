@@ -40,18 +40,18 @@ spring:
       max-request-size: 5MB
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:1025}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:hoangquangnghia123@gmail.com}
     password: ${MAIL_PASSWORD:aaaa aaaa aaaa}
     properties:
       mail:
         smtp:
-          auth: ${MAIL_SMTP_AUTH:false}
+          auth: ${MAIL_SMTP_AUTH:true}
           starttls:
-            enable: ${MAIL_SMTP_STARTTLS:false}
+            enable: ${MAIL_SMTP_STARTTLS:true}
   data:
     redis:
-      host: ${REDIS_HOST:redis}
+      host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       database: ${REDIS_DATABASE:0}
@@ -95,6 +95,7 @@ jwt:
 
 auth:
   reset-token-ttl-minutes: ${AUTH_RESET_TOKEN_TTL_MINUTES:15}
+  otp-resend-cooldown-seconds: ${AUTH_OTP_RESEND_COOLDOWN_SECONDS:60}
 
 supabase:
   url: ${SUPABASE_URL}
@@ -104,7 +105,8 @@ supabase:
 
 notification:
   locale: ${NOTIFICATION_LOCALE:vi}
-  from-address: ${NOTIFICATION_FROM_ADDRESS:no-reply@recruitment.curator}
+  from-address: ${NOTIFICATION_FROM_ADDRESS:hoangquangnghia123@gmail.com}
+  from-name: ${NOTIFICATION_FROM_NAME:Recruitment Curator}
   max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:3}
   otp-ttl-minutes: ${NOTIFICATION_OTP_TTL_MINUTES:5}
   outbox-batch-size: ${NOTIFICATION_OUTBOX_BATCH_SIZE:50}
@@ -112,5 +114,5 @@ notification:
   outbox-dispatch-interval-ms: ${NOTIFICATION_OUTBOX_DISPATCH_INTERVAL_MS:3000}
   worker-interval-ms: ${NOTIFICATION_WORKER_INTERVAL_MS:5000}
   mail:
-    smtp-enabled: ${NOTIFICATION_SMTP_ENABLED:false}
+    smtp-enabled: ${NOTIFICATION_SMTP_ENABLED:true}
     provider: ${NOTIFICATION_MAIL_PROVIDER:logging}
