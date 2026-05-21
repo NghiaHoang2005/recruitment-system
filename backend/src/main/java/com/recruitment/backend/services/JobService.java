@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -121,6 +122,15 @@ public class JobService {
         return jobMapper.toDto(job);
     }
 
+    public List<JobDTO> getJobsByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return jobRepository.findAllById(ids).stream()
+                .map(jobMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
     private Company getApprovedCompanyForRecruiter(User recruiter) {
         CompanyMember membership = companyMemberRepository.findFirstByUser_IdAndJoinStatus(recruiter.getId(), JoinStatus.APPROVED)
                 .orElseThrow(() -> new AppException(ErrorCode.COMPANY_MEMBER_NOT_FOUND));
@@ -171,39 +181,79 @@ public class JobService {
     }
 
     private void embedJob(Job job) {
-        String embeddingText = buildEmbeddingText(job);
-        if (embeddingText.isBlank()) {
+        List<JobEmbeddingInput> inputs = buildJobEmbeddingInputs(job);
+        if (inputs.isEmpty()) {
             return;
         }
 
         try {
             EmbeddingProvider provider = providerRegistry.getEmbeddingProvider();
             Integer dimensions = aiProperties.getEmbedding().getRecommendedDimensions();
+            List<String> texts = inputs.stream().map(JobEmbeddingInput::text).toList();
             EmbeddingResult result = provider.embed(EmbeddingRequest.builder()
-                    .texts(List.of(embeddingText))
+                    .texts(texts)
                     .model(aiProperties.getEmbedding().getModel())
                     .dimensions(dimensions)
                     .timeoutMs(aiProperties.getEmbedding().getTimeoutMs())
                     .build());
 
             if (result.getVectors().isEmpty()) {
-                log.warn("No job embedding vector returned for job {}", job.getId());
+                log.warn("No job embedding vectors returned for job {}", job.getId());
+                return;
+            }
+            if (result.getVectors().size() != inputs.size()) {
+                log.warn("Job embedding vector count mismatch for job {}: inputs={}, vectors={}",
+                        job.getId(), inputs.size(), result.getVectors().size());
                 return;
             }
 
             jobEmbeddingRepository.deleteByJob_Id(job.getId());
-            jobEmbeddingRepository.save(JobEmbedding.builder()
-                    .job(job)
-                    .embeddingType(JobEmbeddingType.FULL_JOB)
-                    .content(embeddingText)
-                    .model(result.getModelName())
-                    .dimensions(result.getDimensions())
-                    .tokenCount(approxTokenCount(embeddingText))
-                    .vector(result.getVectors().get(0))
-                    .build());
+            for (int i = 0; i < inputs.size(); i++) {
+                JobEmbeddingInput input = inputs.get(i);
+                jobEmbeddingRepository.save(JobEmbedding.builder()
+                        .job(job)
+                        .embeddingType(input.type())
+                        .content(input.text())
+                        .model(result.getModelName())
+                        .dimensions(result.getDimensions())
+                        .tokenCount(approxTokenCount(input.text()))
+                        .vector(result.getVectors().get(i))
+                        .build());
+            }
         } catch (Exception ex) {
-            log.warn("Could not generate job embedding for job {}: {}", job.getId(), ex.getMessage());
+            log.warn("Could not generate job embeddings for job {}: {}", job.getId(), ex.getMessage());
         }
+    }
+
+    private List<JobEmbeddingInput> buildJobEmbeddingInputs(Job job) {
+        List<JobEmbeddingInput> inputs = new ArrayList<>();
+
+        String fullText = buildEmbeddingText(job);
+        if (!fullText.isBlank()) {
+            inputs.add(new JobEmbeddingInput(JobEmbeddingType.FULL_JOB, fullText));
+        }
+
+        String descriptionText = buildDescriptionText(job);
+        if (!descriptionText.isBlank()) {
+            inputs.add(new JobEmbeddingInput(JobEmbeddingType.DESCRIPTION, descriptionText));
+        }
+
+        String skillsText = buildSkillsText(job);
+        if (!skillsText.isBlank()) {
+            inputs.add(new JobEmbeddingInput(JobEmbeddingType.SKILLS, skillsText));
+        }
+
+        String requiredText = buildRequirementText(job, RequirementSectionType.REQUIRED, "Required skills and experience");
+        if (!requiredText.isBlank()) {
+            inputs.add(new JobEmbeddingInput(JobEmbeddingType.REQUIRED_REQUIREMENTS, requiredText));
+        }
+
+        String preferredText = buildRequirementText(job, RequirementSectionType.PREFERRED, "Preferred skills");
+        if (!preferredText.isBlank()) {
+            inputs.add(new JobEmbeddingInput(JobEmbeddingType.PREFERRED_REQUIREMENTS, preferredText));
+        }
+
+        return inputs;
     }
 
     private String buildEmbeddingText(Job job) {
@@ -224,15 +274,46 @@ public class JobService {
         return builder.toString().trim();
     }
 
+    private String buildDescriptionText(Job job) {
+        StringBuilder builder = new StringBuilder();
+        appendLine(builder, "Job title", job.getTitle());
+        appendLine(builder, "Job description", job.getDescription());
+        appendLine(builder, "Working time", job.getWorkingTime());
+        appendLine(builder, "Location", job.getLocation());
+        appendLine(builder, "Employment type", job.getEmploymentType());
+        appendLine(builder, "Work mode", job.getWorkMode());
+        appendLine(builder, "Level", job.getLevel());
+        appendLine(builder, "Salary", formatSalary(job));
+        return builder.toString().trim();
+    }
+
+    private String buildSkillsText(Job job) {
+        List<String> required = collectRequirementItems(job, RequirementSectionType.REQUIRED);
+        List<String> preferred = collectRequirementItems(job, RequirementSectionType.PREFERRED);
+        if (required.isEmpty() && preferred.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder("Skills:\n");
+        required.forEach(item -> builder.append("- ").append(item).append("\n"));
+        preferred.forEach(item -> builder.append("- ").append(item).append("\n"));
+        return builder.toString().trim();
+    }
+
+    private String buildRequirementText(Job job, RequirementSectionType type, String heading) {
+        List<String> items = collectRequirementItems(job, type);
+        if (items.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.append(heading).append(":\n");
+        items.forEach(item -> builder.append("- ").append(item).append("\n"));
+        return builder.toString().trim();
+    }
+
     private void appendRequirementGroup(StringBuilder builder, Job job, RequirementSectionType type, String heading) {
-        List<JobRequirementSection> sections = job.getRequirementSections() == null ? List.of() : job.getRequirementSections();
-        List<String> items = sections.stream()
-                .filter(section -> section.getSectionType() == type)
-                .flatMap(section -> section.getItems().stream())
-                .sorted(Comparator.comparing(item -> item.getDisplayOrder() == null ? 0 : item.getDisplayOrder()))
-                .map(JobRequirementItem::getContent)
-                .filter(content -> content != null && !content.isBlank())
-                .toList();
+        List<String> items = collectRequirementItems(job, type);
 
         if (items.isEmpty()) {
             return;
@@ -240,6 +321,17 @@ public class JobService {
 
         builder.append("\n").append(heading).append(":\n");
         items.forEach(item -> builder.append("- ").append(item).append("\n"));
+    }
+
+    private List<String> collectRequirementItems(Job job, RequirementSectionType type) {
+        List<JobRequirementSection> sections = job.getRequirementSections() == null ? List.of() : job.getRequirementSections();
+        return sections.stream()
+                .filter(section -> section.getSectionType() == type)
+                .flatMap(section -> section.getItems().stream())
+                .sorted(Comparator.comparing(item -> item.getDisplayOrder() == null ? 0 : item.getDisplayOrder()))
+                .map(JobRequirementItem::getContent)
+                .filter(content -> content != null && !content.isBlank())
+                .toList();
     }
 
     private String formatSalary(Job job) {
@@ -268,5 +360,8 @@ public class JobService {
 
     private int approxTokenCount(String text) {
         return Math.max(1, text.length() / 4);
+    }
+
+    private record JobEmbeddingInput(JobEmbeddingType type, String text) {
     }
 }

@@ -17,6 +17,8 @@ public interface CvRepository extends JpaRepository<Cv, UUID> {
 
     Optional<Cv> findByIdAndCandidateUserId(UUID cvId, UUID candidateId);
 
+    Optional<Cv> findFirstByCandidateUserIdOrderByIsDefaultDescUploadedAtDesc(UUID candidateId);
+
     Optional<Cv> findTopByCandidateUserIdOrderByUploadedAtDesc(UUID candidateId);
 
     @Modifying
