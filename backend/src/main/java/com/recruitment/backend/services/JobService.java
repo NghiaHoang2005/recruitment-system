@@ -12,6 +12,9 @@ import com.recruitment.backend.repositories.*;
 import com.recruitment.backend.services.ai.config.AiProperties;
 import com.recruitment.backend.services.ai.model.EmbeddingRequest;
 import com.recruitment.backend.services.ai.model.EmbeddingResult;
+import com.recruitment.backend.services.ai.model.JobStructuredExtractionPayload;
+import com.recruitment.backend.services.ai.pipeline.TextNormalizationService;
+import com.recruitment.backend.services.ai.pipeline.JobStructuredExtractionService;
 import com.recruitment.backend.services.ai.providers.EmbeddingProvider;
 import com.recruitment.backend.services.ai.providers.ProviderRegistry;
 import jakarta.transaction.Transactional;
@@ -36,8 +39,12 @@ public class JobService {
     private final CompanyMemberRepository companyMemberRepository;
     private final CompanyRepository companyRepository;
     private final JobEmbeddingRepository jobEmbeddingRepository;
+    private final JobSkillRepository jobSkillRepository;
     private final ProviderRegistry providerRegistry;
     private final AiProperties aiProperties;
+    private final TextNormalizationService textNormalizationService;
+    private final JobStructuredExtractionService jobStructuredExtractionService;
+    private final JobSkillExtractionService jobSkillExtractionService;
     private final JobMapper jobMapper;
 
     @Transactional
@@ -73,8 +80,10 @@ public class JobService {
                 .build();
 
         replaceRequirementSections(job, dto.getRequirementSections());
+        updateNormalizedText(job);
 
         Job savedJob = jobRepository.save(job);
+        extractAndStoreJobSkills(savedJob);
         embedJob(savedJob);
         return jobMapper.toDto(savedJob);
     }
@@ -106,8 +115,10 @@ public class JobService {
         job.setDeadline(dto.getDeadline());
 
         replaceRequirementSections(job, dto.getRequirementSections());
+        updateNormalizedText(job);
 
         Job savedJob = jobRepository.save(job);
+        extractAndStoreJobSkills(savedJob);
         embedJob(savedJob);
         return jobMapper.toDto(savedJob);
     }
@@ -288,6 +299,23 @@ public class JobService {
     }
 
     private String buildSkillsText(Job job) {
+        if (job.getId() != null) {
+            List<JobSkill> requiredSkills =
+                    jobSkillRepository.findByJob_IdAndRequirementType(job.getId(), RequirementSectionType.REQUIRED);
+            List<JobSkill> preferredSkills =
+                    jobSkillRepository.findByJob_IdAndRequirementType(job.getId(), RequirementSectionType.PREFERRED);
+            if (!requiredSkills.isEmpty() || !preferredSkills.isEmpty()) {
+                StringBuilder builder = new StringBuilder("Skills:\n");
+                requiredSkills.stream()
+                        .map(skill -> skill.getSkill().getName())
+                        .forEach(item -> builder.append("- ").append(item).append("\n"));
+                preferredSkills.stream()
+                        .map(skill -> skill.getSkill().getName())
+                        .forEach(item -> builder.append("- ").append(item).append("\n"));
+                return builder.toString().trim();
+            }
+        }
+
         List<String> required = collectRequirementItems(job, RequirementSectionType.REQUIRED);
         List<String> preferred = collectRequirementItems(job, RequirementSectionType.PREFERRED);
         if (required.isEmpty() && preferred.isEmpty()) {
@@ -356,6 +384,32 @@ public class JobService {
             return;
         }
         builder.append(label).append(": ").append(value).append("\n");
+    }
+
+    private void updateNormalizedText(Job job) {
+        String combinedText = buildEmbeddingText(job);
+        String normalized = textNormalizationService.normalize(combinedText);
+        job.setNormalizedText(normalized.isBlank() ? null : normalized);
+    }
+
+    private void extractAndStoreJobSkills(Job job) {
+        String language = textNormalizationService.detectLanguage(
+                job.getNormalizedText() == null ? job.getDescription() : job.getNormalizedText()
+        );
+        String requirementsText = buildRequirementsTextForExtraction(job);
+        JobStructuredExtractionPayload payload =
+                jobStructuredExtractionService.extract(job, language, requirementsText);
+        job.setParsedData(payload.json());
+        jobSkillExtractionService.replaceJobSkills(job, payload.result());
+        jobRepository.save(job);
+    }
+
+    private String buildRequirementsTextForExtraction(Job job) {
+        StringBuilder builder = new StringBuilder();
+        appendRequirementGroup(builder, job, RequirementSectionType.REQUIRED, "Required");
+        appendRequirementGroup(builder, job, RequirementSectionType.PREFERRED, "Preferred");
+        appendRequirementGroup(builder, job, RequirementSectionType.OTHER, "Other");
+        return builder.toString().trim();
     }
 
     private int approxTokenCount(String text) {

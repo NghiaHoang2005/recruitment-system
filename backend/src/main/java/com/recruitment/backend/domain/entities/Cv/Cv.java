@@ -47,6 +47,9 @@ public class Cv {
     @Column(columnDefinition = "TEXT")
     private String rawText;
 
+    @Column(columnDefinition = "TEXT")
+    private String normalizedText;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String parsedData;

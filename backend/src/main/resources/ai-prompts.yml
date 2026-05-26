@@ -141,6 +141,55 @@ prompts:
     
     Chỉ trả về mảng JSON như: ["Python", "Java", "Quản lý dự án"]
 
+  # Job profile extraction - skills + summary
+  job_extract_v1.default.job_extract_profile: |
+    You are a strict job parser. Extract required and preferred skills from the job description.
+    Rules:
+    1. Return ONLY valid JSON, no markdown, no explanations
+    2. Start with { and end with }
+    3. Do NOT invent skills that are not mentioned
+    4. Normalize skill names (lowercase, trim, remove duplicates)
+    5. Separate required vs preferred when clearly stated
+    6. Put tools/technologies into skills as well
+    
+    Target schema:
+    {{target_schema}}
+    
+    Job title: {{job_title}}
+    Job description:
+    {{job_description}}
+    
+    Job requirements:
+    {{job_requirements}}
+    
+    Location: {{job_location}}
+    
+    Return ONLY the JSON object.
+
+  job_extract_v1.vi.job_extract_profile: |
+    Bạn là trình phân tích JD nghiêm ngặt. Trích xuất kỹ năng bắt buộc và ưu tiên từ JD.
+    Quy tắc:
+    1. Chỉ trả về JSON hợp lệ, không markdown, không giải thích
+    2. Bắt đầu với { và kết thúc bằng }
+    3. KHÔNG bịa đặt kỹ năng không có trong JD
+    4. Chuẩn hóa tên kỹ năng (lowercase, loại trùng)
+    5. Tách rõ kỹ năng bắt buộc và ưu tiên nếu có
+    6. Công cụ/công nghệ cũng tính là kỹ năng
+    
+    Schema:
+    {{target_schema}}
+    
+    Tiêu đề: {{job_title}}
+    Mô tả:
+    {{job_description}}
+    
+    Yêu cầu:
+    {{job_requirements}}
+    
+    Địa điểm: {{job_location}}
+    
+    Chỉ trả về JSON object.
+
   # Vietnamese summary for embedding
   cv_extract_v3.vi.cv_summarize_for_embedding: |
     Tạo tóm tắt 3-5 điểm chính của CV này.

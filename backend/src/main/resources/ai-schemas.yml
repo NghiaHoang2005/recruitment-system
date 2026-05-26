@@ -169,6 +169,35 @@ schemas:
       • Led team of 8 developers at startup, shipped 3 major products
       • Strong system design and mentoring skills
 
+  # Job extraction schema - skills and summary
+  job_extract_v1.job_profile:
+    type: object
+    description: Extracted job profile for matching
+    required:
+      - required_skills
+      - preferred_skills
+      - other_skills
+    properties:
+      required_skills:
+        type: array
+        description: Required skills mentioned in job description
+        items:
+          type: string
+      preferred_skills:
+        type: array
+        description: Preferred skills mentioned in job description
+        items:
+          type: string
+      other_skills:
+        type: array
+        description: Other relevant skills and tools
+        items:
+          type: string
+      summary:
+        type: string
+        description: Concise job summary for matching
+        nullable: true
+
 # JSON representations for AI consumption
 json_schemas:
   # Compact JSON schema for profile extraction
@@ -224,6 +253,14 @@ json_schemas:
     • Expert in cloud technologies (AWS, Kubernetes)
     • Led team of 8 developers
     • Strong system design and mentoring"
+
+  job_extract_v1.job_profile.json: |
+    {
+      "required_skills": ["string"],
+      "preferred_skills": ["string"],
+      "other_skills": ["string"],
+      "summary": "string|null"
+    }
 
   cv_extract_v3.cv_review.json: |
     {

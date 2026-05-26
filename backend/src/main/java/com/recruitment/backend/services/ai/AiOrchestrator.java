@@ -42,6 +42,7 @@ public class AiOrchestrator {
         String parsedJson = cvStructuredExtractionService.extract(cvId, normalizedText, language);
         log.info("Parsed JSON: {}", parsedJson);
         cv.setRawText(rawText);
+        cv.setNormalizedText(normalizedText);
         cv.setParsedData(parsedJson);
         cvRepository.save(cv);
 
