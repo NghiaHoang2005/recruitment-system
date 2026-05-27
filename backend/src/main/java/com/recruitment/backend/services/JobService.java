@@ -9,21 +9,17 @@ import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.mappers.JobMapper;
 import com.recruitment.backend.repositories.*;
-import com.recruitment.backend.services.ai.config.AiProperties;
-import com.recruitment.backend.services.ai.model.EmbeddingRequest;
-import com.recruitment.backend.services.ai.model.EmbeddingResult;
 import com.recruitment.backend.services.ai.model.JobStructuredExtractionPayload;
-import com.recruitment.backend.services.ai.pipeline.TextNormalizationService;
 import com.recruitment.backend.services.ai.pipeline.JobStructuredExtractionService;
-import com.recruitment.backend.services.ai.providers.EmbeddingProvider;
-import com.recruitment.backend.services.ai.providers.ProviderRegistry;
+import com.recruitment.backend.services.ai.pipeline.JobEmbeddingPipelineService;
+import com.recruitment.backend.services.ai.pipeline.JobEmbeddingTextBuilder;
+import com.recruitment.backend.services.ai.pipeline.TextNormalizationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -38,13 +34,11 @@ public class JobService {
     private final UserRepository userRepository;
     private final CompanyMemberRepository companyMemberRepository;
     private final CompanyRepository companyRepository;
-    private final JobEmbeddingRepository jobEmbeddingRepository;
-    private final JobSkillRepository jobSkillRepository;
-    private final ProviderRegistry providerRegistry;
-    private final AiProperties aiProperties;
     private final TextNormalizationService textNormalizationService;
     private final JobStructuredExtractionService jobStructuredExtractionService;
     private final JobSkillExtractionService jobSkillExtractionService;
+    private final JobEmbeddingPipelineService jobEmbeddingPipelineService;
+    private final JobEmbeddingTextBuilder jobEmbeddingTextBuilder;
     private final JobMapper jobMapper;
 
     @Transactional
@@ -192,202 +186,15 @@ public class JobService {
     }
 
     private void embedJob(Job job) {
-        List<JobEmbeddingInput> inputs = buildJobEmbeddingInputs(job);
-        if (inputs.isEmpty()) {
-            return;
-        }
-
         try {
-            EmbeddingProvider provider = providerRegistry.getEmbeddingProvider();
-            Integer dimensions = aiProperties.getEmbedding().getRecommendedDimensions();
-            List<String> texts = inputs.stream().map(JobEmbeddingInput::text).toList();
-            EmbeddingResult result = provider.embed(EmbeddingRequest.builder()
-                    .texts(texts)
-                    .model(aiProperties.getEmbedding().getModel())
-                    .dimensions(dimensions)
-                    .timeoutMs(aiProperties.getEmbedding().getTimeoutMs())
-                    .build());
-
-            if (result.getVectors().isEmpty()) {
-                log.warn("No job embedding vectors returned for job {}", job.getId());
-                return;
-            }
-            if (result.getVectors().size() != inputs.size()) {
-                log.warn("Job embedding vector count mismatch for job {}: inputs={}, vectors={}",
-                        job.getId(), inputs.size(), result.getVectors().size());
-                return;
-            }
-
-            jobEmbeddingRepository.deleteByJob_Id(job.getId());
-            for (int i = 0; i < inputs.size(); i++) {
-                JobEmbeddingInput input = inputs.get(i);
-                jobEmbeddingRepository.save(JobEmbedding.builder()
-                        .job(job)
-                        .embeddingType(input.type())
-                        .content(input.text())
-                        .model(result.getModelName())
-                        .dimensions(result.getDimensions())
-                        .tokenCount(approxTokenCount(input.text()))
-                        .vector(result.getVectors().get(i))
-                        .build());
-            }
+            jobEmbeddingPipelineService.embedAndStore(job);
         } catch (Exception ex) {
             log.warn("Could not generate job embeddings for job {}: {}", job.getId(), ex.getMessage());
         }
     }
 
-    private List<JobEmbeddingInput> buildJobEmbeddingInputs(Job job) {
-        List<JobEmbeddingInput> inputs = new ArrayList<>();
-
-        String fullText = buildEmbeddingText(job);
-        if (!fullText.isBlank()) {
-            inputs.add(new JobEmbeddingInput(JobEmbeddingType.FULL_JOB, fullText));
-        }
-
-        String descriptionText = buildDescriptionText(job);
-        if (!descriptionText.isBlank()) {
-            inputs.add(new JobEmbeddingInput(JobEmbeddingType.DESCRIPTION, descriptionText));
-        }
-
-        String skillsText = buildSkillsText(job);
-        if (!skillsText.isBlank()) {
-            inputs.add(new JobEmbeddingInput(JobEmbeddingType.SKILLS, skillsText));
-        }
-
-        String requiredText = buildRequirementText(job, RequirementSectionType.REQUIRED, "Required skills and experience");
-        if (!requiredText.isBlank()) {
-            inputs.add(new JobEmbeddingInput(JobEmbeddingType.REQUIRED_REQUIREMENTS, requiredText));
-        }
-
-        String preferredText = buildRequirementText(job, RequirementSectionType.PREFERRED, "Preferred skills");
-        if (!preferredText.isBlank()) {
-            inputs.add(new JobEmbeddingInput(JobEmbeddingType.PREFERRED_REQUIREMENTS, preferredText));
-        }
-
-        return inputs;
-    }
-
-    private String buildEmbeddingText(Job job) {
-        StringBuilder builder = new StringBuilder();
-        appendLine(builder, "Job title", job.getTitle());
-        appendLine(builder, "Job description", job.getDescription());
-        appendLine(builder, "Working time", job.getWorkingTime());
-        appendLine(builder, "Location", job.getLocation());
-        appendLine(builder, "Employment type", job.getEmploymentType());
-        appendLine(builder, "Work mode", job.getWorkMode());
-        appendLine(builder, "Level", job.getLevel());
-        appendLine(builder, "Salary", formatSalary(job));
-
-        appendRequirementGroup(builder, job, RequirementSectionType.REQUIRED, "Required skills and experience");
-        appendRequirementGroup(builder, job, RequirementSectionType.PREFERRED, "Preferred skills");
-        appendRequirementGroup(builder, job, RequirementSectionType.OTHER, "Other requirements");
-
-        return builder.toString().trim();
-    }
-
-    private String buildDescriptionText(Job job) {
-        StringBuilder builder = new StringBuilder();
-        appendLine(builder, "Job title", job.getTitle());
-        appendLine(builder, "Job description", job.getDescription());
-        appendLine(builder, "Working time", job.getWorkingTime());
-        appendLine(builder, "Location", job.getLocation());
-        appendLine(builder, "Employment type", job.getEmploymentType());
-        appendLine(builder, "Work mode", job.getWorkMode());
-        appendLine(builder, "Level", job.getLevel());
-        appendLine(builder, "Salary", formatSalary(job));
-        return builder.toString().trim();
-    }
-
-    private String buildSkillsText(Job job) {
-        if (job.getId() != null) {
-            List<JobSkill> requiredSkills =
-                    jobSkillRepository.findByJob_IdAndRequirementType(job.getId(), RequirementSectionType.REQUIRED);
-            List<JobSkill> preferredSkills =
-                    jobSkillRepository.findByJob_IdAndRequirementType(job.getId(), RequirementSectionType.PREFERRED);
-            if (!requiredSkills.isEmpty() || !preferredSkills.isEmpty()) {
-                StringBuilder builder = new StringBuilder("Skills:\n");
-                requiredSkills.stream()
-                        .map(skill -> skill.getSkill().getName())
-                        .forEach(item -> builder.append("- ").append(item).append("\n"));
-                preferredSkills.stream()
-                        .map(skill -> skill.getSkill().getName())
-                        .forEach(item -> builder.append("- ").append(item).append("\n"));
-                return builder.toString().trim();
-            }
-        }
-
-        List<String> required = collectRequirementItems(job, RequirementSectionType.REQUIRED);
-        List<String> preferred = collectRequirementItems(job, RequirementSectionType.PREFERRED);
-        if (required.isEmpty() && preferred.isEmpty()) {
-            return "";
-        }
-
-        StringBuilder builder = new StringBuilder("Skills:\n");
-        required.forEach(item -> builder.append("- ").append(item).append("\n"));
-        preferred.forEach(item -> builder.append("- ").append(item).append("\n"));
-        return builder.toString().trim();
-    }
-
-    private String buildRequirementText(Job job, RequirementSectionType type, String heading) {
-        List<String> items = collectRequirementItems(job, type);
-        if (items.isEmpty()) {
-            return "";
-        }
-
-        StringBuilder builder = new StringBuilder();
-        builder.append(heading).append(":\n");
-        items.forEach(item -> builder.append("- ").append(item).append("\n"));
-        return builder.toString().trim();
-    }
-
-    private void appendRequirementGroup(StringBuilder builder, Job job, RequirementSectionType type, String heading) {
-        List<String> items = collectRequirementItems(job, type);
-
-        if (items.isEmpty()) {
-            return;
-        }
-
-        builder.append("\n").append(heading).append(":\n");
-        items.forEach(item -> builder.append("- ").append(item).append("\n"));
-    }
-
-    private List<String> collectRequirementItems(Job job, RequirementSectionType type) {
-        List<JobRequirementSection> sections = job.getRequirementSections() == null ? List.of() : job.getRequirementSections();
-        return sections.stream()
-                .filter(section -> section.getSectionType() == type)
-                .flatMap(section -> section.getItems().stream())
-                .sorted(Comparator.comparing(item -> item.getDisplayOrder() == null ? 0 : item.getDisplayOrder()))
-                .map(JobRequirementItem::getContent)
-                .filter(content -> content != null && !content.isBlank())
-                .toList();
-    }
-
-    private String formatSalary(Job job) {
-        if (Boolean.TRUE.equals(job.getSalaryNegotiable())) {
-            return "Negotiable";
-        }
-        if (job.getMinSalary() == null && job.getMaxSalary() == null) {
-            return "";
-        }
-        String currency = job.getCurrency() == null ? "" : " " + job.getCurrency();
-        if (job.getMinSalary() != null && job.getMaxSalary() != null) {
-            return job.getMinSalary() + " - " + job.getMaxSalary() + currency;
-        }
-        if (job.getMinSalary() != null) {
-            return "From " + job.getMinSalary() + currency;
-        }
-        return "Up to " + job.getMaxSalary() + currency;
-    }
-
-    private void appendLine(StringBuilder builder, String label, Object value) {
-        if (value == null || value.toString().isBlank()) {
-            return;
-        }
-        builder.append(label).append(": ").append(value).append("\n");
-    }
-
     private void updateNormalizedText(Job job) {
-        String combinedText = buildEmbeddingText(job);
+        String combinedText = jobEmbeddingTextBuilder.buildEmbeddingText(job);
         String normalized = textNormalizationService.normalize(combinedText);
         job.setNormalizedText(normalized.isBlank() ? null : normalized);
     }
@@ -396,7 +203,7 @@ public class JobService {
         String language = textNormalizationService.detectLanguage(
                 job.getNormalizedText() == null ? job.getDescription() : job.getNormalizedText()
         );
-        String requirementsText = buildRequirementsTextForExtraction(job);
+        String requirementsText = jobEmbeddingTextBuilder.buildRequirementsTextForExtraction(job);
         JobStructuredExtractionPayload payload =
                 jobStructuredExtractionService.extract(job, language, requirementsText);
         job.setParsedData(payload.json());
@@ -404,18 +211,4 @@ public class JobService {
         jobRepository.save(job);
     }
 
-    private String buildRequirementsTextForExtraction(Job job) {
-        StringBuilder builder = new StringBuilder();
-        appendRequirementGroup(builder, job, RequirementSectionType.REQUIRED, "Required");
-        appendRequirementGroup(builder, job, RequirementSectionType.PREFERRED, "Preferred");
-        appendRequirementGroup(builder, job, RequirementSectionType.OTHER, "Other");
-        return builder.toString().trim();
-    }
-
-    private int approxTokenCount(String text) {
-        return Math.max(1, text.length() / 4);
-    }
-
-    private record JobEmbeddingInput(JobEmbeddingType type, String text) {
-    }
 }

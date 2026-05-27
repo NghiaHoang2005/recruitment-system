@@ -35,6 +35,9 @@ public class JobEmbedding {
     @Column(nullable = false, length = 100)
     private String model;
 
+    @Column(name = "prompt_version", length = 100)
+    private String promptVersion;
+
     private Integer dimensions;
 
     private Integer tokenCount;

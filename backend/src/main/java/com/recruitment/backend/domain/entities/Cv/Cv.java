@@ -44,15 +44,19 @@ public class Cv {
     @Enumerated(EnumType.STRING)
     private CvStatus aiStatus;
 
-    @Column(columnDefinition = "TEXT")
+    @Lob
     private String rawText;
 
-    @Column(columnDefinition = "TEXT")
+    @Lob
     private String normalizedText;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String parsedData;
+
+    @JdbcTypeCode(SqlTypes.OTHER)
+    @Column(columnDefinition = "tsvector",updatable = false)
+    private String searchTsv;
 
     @CreationTimestamp
     @Column(updatable = false)

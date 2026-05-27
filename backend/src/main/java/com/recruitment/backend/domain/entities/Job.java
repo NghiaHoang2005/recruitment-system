@@ -34,15 +34,19 @@ public class Job {
     @Column(nullable = false)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Lob
     private String description;
 
-    @Column(columnDefinition = "TEXT")
+    @Lob
     private String normalizedText;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String parsedData;
+
+    @JdbcTypeCode(SqlTypes.OTHER)
+    @Column(columnDefinition = "tsvector")
+    private String searchTsv;
 
     private String workingTime;
 

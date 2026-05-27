@@ -7,13 +7,9 @@ import com.recruitment.backend.domain.entities.Cv.CvEmbedding;
 import com.recruitment.backend.domain.entities.Cv.EmbeddingType;
 import com.recruitment.backend.repositories.CvEmbeddingRepository;
 import com.recruitment.backend.repositories.CvRepository;
-import com.recruitment.backend.services.ai.config.AiConfigLoader;
 import com.recruitment.backend.services.ai.config.AiProperties;
-import com.recruitment.backend.services.ai.model.EmbeddingRequest;
 import com.recruitment.backend.services.ai.model.EmbeddingResult;
-import com.recruitment.backend.services.ai.providers.EmbeddingProvider;
 import com.recruitment.backend.services.ai.providers.PromptTemplateProvider;
-import com.recruitment.backend.services.ai.providers.ProviderRegistry;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,31 +28,28 @@ public class CvEmbeddingPipelineService {
 
     private final CvRepository cvRepository;
     private final CvEmbeddingRepository cvEmbeddingRepository;
-    private final ProviderRegistry providerRegistry;
     private final AiProperties aiProperties;
     private final AiRunLoggingService aiRunLoggingService;
     private final ObjectMapper objectMapper;
-    private final AiConfigLoader aiConfigLoader;
     private final PromptTemplateProvider promptTemplateProvider;
+    private final EmbeddingBatchService embeddingBatchService;
 
     public CvEmbeddingPipelineService(
             CvRepository cvRepository,
             CvEmbeddingRepository cvEmbeddingRepository,
-            ProviderRegistry providerRegistry,
             AiProperties aiProperties,
             AiRunLoggingService aiRunLoggingService,
             ObjectMapper objectMapper,
-            AiConfigLoader aiConfigLoader,
-            PromptTemplateProvider promptTemplateProvider
+            PromptTemplateProvider promptTemplateProvider,
+            EmbeddingBatchService embeddingBatchService
     ) {
         this.cvRepository = cvRepository;
         this.cvEmbeddingRepository = cvEmbeddingRepository;
-        this.providerRegistry = providerRegistry;
         this.aiProperties = aiProperties;
         this.aiRunLoggingService = aiRunLoggingService;
         this.objectMapper = objectMapper;
-        this.aiConfigLoader = aiConfigLoader;
         this.promptTemplateProvider = promptTemplateProvider;
+        this.embeddingBatchService = embeddingBatchService;
     }
     @Transactional
     public void embedAndStore(
@@ -71,10 +64,6 @@ public class CvEmbeddingPipelineService {
         Cv cv = cvRepository.getReferenceById(cvId);
         
         log.debug("Starting embedding generation for CV: {} (language: {})", cvId, language);
-        
-        cvEmbeddingRepository.deleteByCvId(cvId);
-
-        // Create embedding inputs from all 4 types
         List<EmbeddingInput> inputs = new ArrayList<>();
         
         // Type 1: RAW - text chunks (each chunk is a separate embedding)
@@ -132,27 +121,13 @@ public class CvEmbeddingPipelineService {
             return;
         }
 
-        log.info("Embedding {} inputs for CV: {} using provider: {}", 
-                inputs.size(), cvId, providerRegistry.getEmbeddingProvider().providerName());
-
-        // Call embedding provider
-        EmbeddingProvider provider = providerRegistry.getEmbeddingProvider();
+        log.info("Embedding {} inputs for CV: {} using provider: {}",
+                inputs.size(), cvId, aiProperties.getEmbedding().getActiveProvider());
         List<String> texts = inputs.stream().map(EmbeddingInput::text).toList();
         long start = System.currentTimeMillis();
 
         try {
-            // Use recommended dimensions based on provider
-            Integer effectiveDimensions = aiProperties.getEmbedding().getRecommendedDimensions();
-            
-            log.debug("Calling embedding provider with {} texts, dimensions: {}", 
-                    texts.size(), effectiveDimensions);
-
-            EmbeddingResult result = provider.embed(EmbeddingRequest.builder()
-                    .texts(texts)
-                    .model(aiProperties.getEmbedding().getModel())
-                    .dimensions(effectiveDimensions)
-                    .timeoutMs(aiProperties.getEmbedding().getTimeoutMs())
-                    .build());
+            EmbeddingResult result = embeddingBatchService.embedAll(texts);
 
             long latency = System.currentTimeMillis() - start;
             List<float[]> vectors = result.getVectors();
@@ -167,6 +142,7 @@ public class CvEmbeddingPipelineService {
                     cvId, vectors.size(), latency);
 
             // Store all embeddings
+            List<CvEmbedding> embeddings = new ArrayList<>(inputs.size());
             for (int i = 0; i < inputs.size(); i++) {
                 EmbeddingInput input = inputs.get(i);
                 CvEmbedding embedding = CvEmbedding.builder()
@@ -181,9 +157,14 @@ public class CvEmbeddingPipelineService {
                         .tokenCount(approxTokenCount(input.text()))
                         .vector(vectors.get(i))
                         .build();
-                cvEmbeddingRepository.save(embedding);
-                log.debug("Stored {} embedding (chunk {}, {} tokens)", 
-                        input.type(), input.chunkIndex(), embedding.getTokenCount());
+                embeddings.add(embedding);
+            }
+
+            cvEmbeddingRepository.deleteByCvId(cvId);
+            cvEmbeddingRepository.saveAll(embeddings);
+            for (CvEmbedding embedding : embeddings) {
+                log.debug("Stored {} embedding (chunk {}, {} tokens)",
+                        embedding.getType(), embedding.getChunkIndex(), embedding.getTokenCount());
             }
 
             log.info("✓ Stored {} embeddings for CV: {}", vectors.size(), cvId);
@@ -197,8 +178,8 @@ public class CvEmbeddingPipelineService {
                     result.getModelName(),
                     result.getModelVersion(),
                     promptVersion,
-                    result.getUsage().getInputTokens(),
-                    result.getUsage().getOutputTokens(),
+                    result.getUsage() != null ? result.getUsage().getInputTokens() : null,
+                    result.getUsage() != null ? result.getUsage().getOutputTokens() : null,
                     latency
             );
         } catch (Exception ex) {
@@ -209,7 +190,7 @@ public class CvEmbeddingPipelineService {
                     cvId,
                     requestId,
                     STEP_NAME,
-                    provider.providerName(),
+                    aiProperties.getEmbedding().getActiveProvider(),
                     aiProperties.getEmbedding().getModel(),
                     null,
                     aiProperties.getPrompts().getActiveVersion(),
