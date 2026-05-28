@@ -23,7 +23,7 @@ public interface JobEmbeddingRepository extends JpaRepository<JobEmbedding, UUID
         WHERE e.embedding_type = :type
           AND e.model = :model
           AND e.dimensions = :dimensions
-          AND j.status = :status
+          AND (:status IS NULL OR j.status = :status)
         ORDER BY e.vector <=> cast(:queryVector as vector)
         LIMIT :topK
         """, nativeQuery = true)

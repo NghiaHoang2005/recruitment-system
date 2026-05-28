@@ -21,6 +21,8 @@ public interface CvRepository extends JpaRepository<Cv, UUID> {
 
     Optional<Cv> findTopByCandidateUserIdOrderByUploadedAtDesc(UUID candidateId);
 
+    List<Cv> findByIdInAndCandidate_OpenToWorkTrue(List<UUID> cvIds);
+
     @Modifying
     @Query("""
             update Cv c
@@ -28,4 +30,24 @@ public interface CvRepository extends JpaRepository<Cv, UUID> {
             where c.candidate.userId = :candidateId and c.isDefault = true
             """)
     void clearDefaultByCandidateId(@Param("candidateId") UUID candidateId);
+
+    @Query(value = """
+        SELECT c.id AS cvId,
+               ts_rank(c.search_tsv, plainto_tsquery('simple', :query)) AS rank
+        FROM cvs c
+        WHERE c.search_tsv @@ plainto_tsquery('simple', :query)
+          AND (:candidateId IS NULL OR c.candidate_id = :candidateId)
+        ORDER BY rank DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<CvFtsView> searchCvsByFts(
+            @Param("query") String query,
+            @Param("candidateId") UUID candidateId,
+            @Param("limit") int limit
+    );
+
+    interface CvFtsView {
+        UUID getCvId();
+        Double getRank();
+    }
 }

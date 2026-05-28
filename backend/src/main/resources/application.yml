@@ -30,7 +30,7 @@ spring:
     show-sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
@@ -86,6 +86,17 @@ ai:
     max-characters-per-input: ${AI_EMBEDDING_MAX_CHARACTERS_PER_INPUT:8000}
   prompts:
     active-version: ${AI_PROMPT_VERSION:cv_extract_v3}
+
+matching:
+  hybrid:
+    candidate-pool-size: ${MATCHING_HYBRID_POOL_SIZE:50}
+    max-limit: ${MATCHING_HYBRID_MAX_LIMIT:50}
+    required-skill-weight: ${MATCHING_HYBRID_REQUIRED_SKILL_WEIGHT:0.7}
+    preferred-skill-weight: ${MATCHING_HYBRID_PREFERRED_SKILL_WEIGHT:0.3}
+    weights:
+      semantic: ${MATCHING_HYBRID_WEIGHT_SEMANTIC:0.6}
+      fts: ${MATCHING_HYBRID_WEIGHT_FTS:0.25}
+      skills: ${MATCHING_HYBRID_WEIGHT_SKILLS:0.15}
 
 
 jwt:

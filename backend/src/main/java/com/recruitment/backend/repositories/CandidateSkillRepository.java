@@ -4,6 +4,7 @@ import com.recruitment.backend.domain.entities.Candidate.CandidateSkill;
 import com.recruitment.backend.domain.entities.Candidate.CandidateSkillId;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -19,4 +20,7 @@ public interface CandidateSkillRepository extends JpaRepository<CandidateSkill, 
 
     @Query("SELECT cs FROM CandidateSkill cs JOIN FETCH cs.skill WHERE cs.candidate.userId = :candidateId")
     List<CandidateSkill> findByCandidateUserId(UUID candidateId);
+
+    @Query("SELECT cs FROM CandidateSkill cs JOIN FETCH cs.skill WHERE cs.candidate.userId IN :candidateIds")
+    List<CandidateSkill> findByCandidateUserIdIn(@Param("candidateIds") List<UUID> candidateIds);
 }

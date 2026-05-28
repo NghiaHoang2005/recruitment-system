@@ -14,5 +14,7 @@ public interface JobSkillRepository extends JpaRepository<JobSkill, UUID> {
 
     List<JobSkill> findByJob_IdAndRequirementType(UUID jobId, RequirementSectionType requirementType);
 
+    List<JobSkill> findByJob_IdIn(List<UUID> jobIds);
+
     void deleteByJob_Id(UUID jobId);
 }

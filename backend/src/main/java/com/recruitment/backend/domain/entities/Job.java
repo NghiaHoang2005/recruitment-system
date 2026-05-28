@@ -34,10 +34,10 @@ public class Job {
     @Column(nullable = false)
     private String title;
 
-    @Lob
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String description;
 
-    @Lob
+    @Column(columnDefinition = "TEXT",nullable = false)
     private String normalizedText;
 
     @JdbcTypeCode(SqlTypes.JSON)

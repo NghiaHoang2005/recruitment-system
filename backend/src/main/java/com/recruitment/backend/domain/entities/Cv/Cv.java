@@ -44,10 +44,10 @@ public class Cv {
     @Enumerated(EnumType.STRING)
     private CvStatus aiStatus;
 
-    @Lob
+    @Column(columnDefinition = "TEXT",nullable = false)
     private String rawText;
 
-    @Lob
+    @Column(columnDefinition = "TEXT",nullable = false)
     private String normalizedText;
 
     @JdbcTypeCode(SqlTypes.JSON)

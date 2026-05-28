@@ -3,6 +3,7 @@ package com.recruitment.backend.controllers;
 import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.JobDTO;
 import com.recruitment.backend.domain.dtos.JobRecommendationResponse;
+import com.recruitment.backend.domain.dtos.Cv.CvRecommendationResponse;
 import com.recruitment.backend.services.JobMatchService;
 import com.recruitment.backend.services.JobService;
 import lombok.RequiredArgsConstructor;
@@ -68,9 +69,8 @@ public class JobController {
             @RequestParam(required = false) UUID cvId,
             @RequestParam(defaultValue = "10") int topK
     ) {
-        int safeTopK = Math.min(Math.max(topK, 1), 50);
         List<JobMatchService.RecommendationScore> scores =
-                jobMatchService.recommendJobs(getCurrentUserId(), cvId, safeTopK);
+                jobMatchService.recommendJobs(getCurrentUserId(), cvId, topK);
         List<UUID> jobIds = scores.stream().map(JobMatchService.RecommendationScore::getJobId).toList();
         Map<UUID, JobDTO> jobMap = jobService.getJobsByIds(jobIds).stream()
                 .collect(Collectors.toMap(JobDTO::getId, job -> job));
@@ -89,6 +89,15 @@ public class JobController {
                 .filter(Objects::nonNull)
                 .toList();
 
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{id}/matches")
+    public ResponseEntity<ApiResponse<List<CvRecommendationResponse>>> getCvMatches(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "10") int topK
+    ) {
+        List<CvRecommendationResponse> response = jobMatchService.recommendCvs(id, topK);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

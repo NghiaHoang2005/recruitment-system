@@ -1,39 +1,59 @@
 package com.recruitment.backend.services;
 
+import com.recruitment.backend.config.HybridMatchingProperties;
+import com.recruitment.backend.domain.dtos.Cv.CvItemResponse;
+import com.recruitment.backend.domain.dtos.Cv.CvRecommendationResponse;
 import com.recruitment.backend.domain.entities.Cv.Cv;
 import com.recruitment.backend.domain.entities.Cv.CvEmbedding;
 import com.recruitment.backend.domain.entities.Cv.EmbeddingType;
 import com.recruitment.backend.domain.entities.Job;
 import com.recruitment.backend.domain.entities.JobEmbedding;
+import com.recruitment.backend.domain.entities.JobSkill;
 import com.recruitment.backend.domain.enums.JobEmbeddingType;
 import com.recruitment.backend.domain.enums.JobStatus;
+import com.recruitment.backend.domain.enums.RequirementSectionType;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
+import com.recruitment.backend.repositories.CandidateSkillRepository;
 import com.recruitment.backend.repositories.CvEmbeddingRepository;
 import com.recruitment.backend.repositories.CvRepository;
 import com.recruitment.backend.repositories.JobEmbeddingRepository;
 import com.recruitment.backend.repositories.JobRepository;
+import com.recruitment.backend.repositories.JobSkillRepository;
+import com.recruitment.backend.utils.VectorSearchUtil;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class JobMatchService {
 
-    private static final double SKILLS_WEIGHT = 0.33;
-    private static final double DESCRIPTION_WEIGHT = 0.33;
-    private static final double REQUIREMENTS_WEIGHT = 0.34;
-    private static final double REQUIRED_RATIO = 0.7;
-    private static final double PREFERRED_RATIO = 0.3;
+    private static final double SEMANTIC_SKILLS_WEIGHT = 0.33;
+    private static final double SEMANTIC_DESCRIPTION_WEIGHT = 0.33;
+    private static final double SEMANTIC_REQUIREMENTS_WEIGHT = 0.34;
+    private static final int MAX_FTS_QUERY_LENGTH = 2000;
 
     private final CvRepository cvRepository;
     private final CvEmbeddingRepository cvEmbeddingRepository;
     private final JobRepository jobRepository;
     private final JobEmbeddingRepository jobEmbeddingRepository;
+    private final JobSkillRepository jobSkillRepository;
+    private final CandidateSkillRepository candidateSkillRepository;
+    private final HybridMatchingProperties hybridMatchingProperties;
 
     public MatchScore matchJob(UUID candidateUserId, UUID jobId, UUID cvId) {
         Cv cv = resolveCv(candidateUserId, cvId);
@@ -42,133 +62,150 @@ public class JobMatchService {
 
         List<CvEmbedding> cvEmbeddings = cvEmbeddingRepository.findByCvId(cv.getId());
         List<JobEmbedding> jobEmbeddings = jobEmbeddingRepository.findByJob_Id(jobId);
-        return computeMatchScore(job, cv, cvEmbeddings, jobEmbeddings);
-    }
 
-    public List<RecommendationScore> recommendJobs(UUID candidateUserId, UUID cvId, int topK) {
-        Cv cv = resolveCv(candidateUserId, cvId);
-        List<CvEmbedding> cvEmbeddings = cvEmbeddingRepository.findByCvId(cv.getId());
-
-        CvEmbedding cvSkills = findCvEmbedding(cvEmbeddings, EmbeddingType.SKILLS, null, null);
-        CvEmbedding cvExperience = findCvEmbedding(cvEmbeddings, EmbeddingType.EXPERIENCE, null, null);
-        if (cvSkills == null || cvExperience == null) {
-            return List.of();
-        }
-        if (cvSkills.getModel() == null || cvSkills.getDimensions() == null
-                || cvExperience.getModel() == null || cvExperience.getDimensions() == null) {
-            return List.of();
-        }
-        if (!Objects.equals(cvSkills.getModel(), cvExperience.getModel())
-                || !Objects.equals(cvSkills.getDimensions(), cvExperience.getDimensions())) {
-            return List.of();
-        }
-
-        int searchK = Math.max(topK * 3, 50);
-        String status = JobStatus.PUBLISHED.name();
-
-        Map<UUID, Double> skillsScores = loadSimilarityScores(
-                cvSkills, JobEmbeddingType.SKILLS, searchK, status);
-        Map<UUID, Double> descriptionScores = loadSimilarityScores(
-                cvExperience, JobEmbeddingType.DESCRIPTION, searchK, status);
-
-        Map<UUID, Double> requiredBySkills = loadSimilarityScores(
-                cvSkills, JobEmbeddingType.REQUIRED_REQUIREMENTS, searchK, status);
-        Map<UUID, Double> requiredByExperience = loadSimilarityScores(
-                cvExperience, JobEmbeddingType.REQUIRED_REQUIREMENTS, searchK, status);
-        Map<UUID, Double> requiredScores = mergeMax(requiredBySkills, requiredByExperience);
-
-        Map<UUID, Double> preferredBySkills = loadSimilarityScores(
-                cvSkills, JobEmbeddingType.PREFERRED_REQUIREMENTS, searchK, status);
-        Map<UUID, Double> preferredByExperience = loadSimilarityScores(
-                cvExperience, JobEmbeddingType.PREFERRED_REQUIREMENTS, searchK, status);
-        Map<UUID, Double> preferredScores = mergeMax(preferredBySkills, preferredByExperience);
-
-        List<RecommendationScore> results = new ArrayList<>();
-        for (UUID jobId : skillsScores.keySet()) {
-            Double skills = skillsScores.get(jobId);
-            Double description = descriptionScores.get(jobId);
-            Double required = requiredScores.get(jobId);
-            if (skills == null || description == null || required == null) {
-                continue;
-            }
-            Double preferred = preferredScores.get(jobId);
-            double requirementsScore = preferred == null
-                    ? required
-                    : (REQUIRED_RATIO * required) + (PREFERRED_RATIO * preferred);
-            double finalScore = (SKILLS_WEIGHT * skills)
-                    + (DESCRIPTION_WEIGHT * description)
-                    + (REQUIREMENTS_WEIGHT * requirementsScore);
-            results.add(new RecommendationScore(jobId, toPercent(finalScore)));
-        }
-
-        results.sort(Comparator.comparingInt(RecommendationScore::getFitScore).reversed());
-        if (results.size() > topK) {
-            return results.subList(0, topK);
-        }
-        return results;
-    }
-
-    private MatchScore computeMatchScore(
-            Job job,
-            Cv cv,
-            List<CvEmbedding> cvEmbeddings,
-            List<JobEmbedding> jobEmbeddings
-    ) {
-        JobEmbedding jobSkills = findJobEmbedding(jobEmbeddings, JobEmbeddingType.SKILLS);
-        JobEmbedding jobDescription = findJobEmbedding(jobEmbeddings, JobEmbeddingType.DESCRIPTION);
-        JobEmbedding jobRequired = findJobEmbedding(jobEmbeddings, JobEmbeddingType.REQUIRED_REQUIREMENTS);
-        JobEmbedding jobPreferred = findJobEmbedding(jobEmbeddings, JobEmbeddingType.PREFERRED_REQUIREMENTS);
-
-        if (jobSkills == null || jobDescription == null || jobRequired == null
-                || jobSkills.getModel() == null || jobSkills.getDimensions() == null) {
-            return MatchScore.builder()
-                    .jobId(job.getId())
-                    .cvId(cv.getId())
-                    .fitScore(null)
-                    .build();
-        }
-
-        CvEmbedding cvSkills = findCvEmbedding(cvEmbeddings, EmbeddingType.SKILLS, jobSkills.getModel(), jobSkills.getDimensions());
-        CvEmbedding cvExperience = findCvEmbedding(cvEmbeddings, EmbeddingType.EXPERIENCE, jobDescription.getModel(), jobDescription.getDimensions());
-        if (cvSkills == null || cvExperience == null) {
-            return MatchScore.builder()
-                    .jobId(job.getId())
-                    .cvId(cv.getId())
-                    .fitScore(null)
-                    .build();
-        }
-
-        Double skillsSim = normalizeSimilarity(cosineSimilarity(jobSkills.getVector(), cvSkills.getVector()));
-        Double descriptionSim = normalizeSimilarity(cosineSimilarity(jobDescription.getVector(), cvExperience.getVector()));
-        Double requiredSim = normalizeSimilarity(maxSimilarity(jobRequired, cvSkills, cvExperience));
-        if (skillsSim == null || descriptionSim == null || requiredSim == null) {
-            return MatchScore.builder()
-                    .jobId(job.getId())
-                    .cvId(cv.getId())
-                    .fitScore(null)
-                    .build();
-        }
-
-        Double preferredSim = jobPreferred == null
-                ? null
-                : normalizeSimilarity(maxSimilarity(jobPreferred, cvSkills, cvExperience));
-        double requirementsScore = preferredSim == null
-                ? requiredSim
-                : (REQUIRED_RATIO * requiredSim) + (PREFERRED_RATIO * preferredSim);
-        double finalScore = (SKILLS_WEIGHT * skillsSim)
-                + (DESCRIPTION_WEIGHT * descriptionSim)
-                + (REQUIREMENTS_WEIGHT * requirementsScore);
+        SemanticScore semanticScore = computeSemanticScore(jobEmbeddings, cvEmbeddings);
+        Double skillScore = computeSkillScoreForCandidate(candidateUserId, jobId);
+        FtsScoreBundle ftsBundle = computeJobFtsScores(cv, JobStatus.PUBLISHED.name(), resolveCandidatePoolSize(1));
+        Double ftsScore = ftsBundle.enabled()
+                ? ftsBundle.scores().getOrDefault(jobId, 0.0)
+                : null;
+        Double hybridScore = combineHybridScores(
+                semanticScore == null ? null : semanticScore.getScore(),
+                ftsScore,
+                skillScore
+        );
 
         return MatchScore.builder()
                 .jobId(job.getId())
                 .cvId(cv.getId())
-                .fitScore(toPercent(finalScore))
-                .skillsScore(toPercent(skillsSim))
-                .descriptionScore(toPercent(descriptionSim))
-                .requirementsScore(toPercent(requirementsScore))
-                .model(jobSkills.getModel())
-                .dimensions(jobSkills.getDimensions())
+                .fitScore(toPercent(hybridScore))
+                .semanticScore(toPercent(semanticScore == null ? null : semanticScore.getScore()))
+                .ftsScore(toPercent(ftsScore))
+                .skillScore(toPercent(skillScore))
+                .skillsScore(toPercent(semanticScore == null ? null : semanticScore.getSkillsScore()))
+                .descriptionScore(toPercent(semanticScore == null ? null : semanticScore.getDescriptionScore()))
+                .requirementsScore(toPercent(semanticScore == null ? null : semanticScore.getRequirementsScore()))
+                .model(semanticScore == null ? null : semanticScore.getModel())
+                .dimensions(semanticScore == null ? null : semanticScore.getDimensions())
                 .build();
+    }
+
+    public List<RecommendationScore> recommendJobs(UUID candidateUserId, UUID cvId, int topK) {
+        Cv cv = resolveCv(candidateUserId, cvId);
+        int safeTopK = clampTopK(topK);
+        int poolSize = resolveCandidatePoolSize(safeTopK);
+        String status = JobStatus.PUBLISHED.name();
+
+        FtsScoreBundle ftsBundle = computeJobFtsScores(cv, status, poolSize);
+        SemanticScoreBundle semanticScores = computeSemanticScoresForJobs(cv, status, poolSize);
+
+        Set<UUID> candidateJobIds = new HashSet<>();
+        candidateJobIds.addAll(ftsBundle.scores().keySet());
+        candidateJobIds.addAll(semanticScores.scores().keySet());
+        if (candidateJobIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, Double> skillScores = computeSkillScoresForJobs(candidateUserId, candidateJobIds);
+        List<ScoredId> scored = new ArrayList<>();
+        for (UUID jobId : candidateJobIds) {
+            Double semanticScore = semanticScores.scores().get(jobId);
+            Double ftsScore = ftsBundle.enabled()
+                    ? ftsBundle.scores().getOrDefault(jobId, 0.0)
+                    : null;
+            Double skillScore = skillScores.get(jobId);
+            Double finalScore = combineHybridScores(semanticScore, ftsScore, skillScore);
+            if (finalScore == null) {
+                continue;
+            }
+            scored.add(new ScoredId(jobId, finalScore));
+        }
+
+        scored.sort(scoredComparator());
+        return scored.stream()
+                .limit(safeTopK)
+                .map(item -> new RecommendationScore(item.id(), toPercentValue(item.score())))
+                .toList();
+    }
+
+    public List<CvRecommendationResponse> recommendCvs(UUID jobId, int topK) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
+
+        int safeTopK = clampTopK(topK);
+        int poolSize = resolveCandidatePoolSize(safeTopK);
+        List<JobEmbedding> jobEmbeddings = jobEmbeddingRepository.findByJob_Id(jobId);
+
+        FtsScoreBundle ftsBundle = computeCvFtsScores(job, poolSize);
+        Set<UUID> semanticCandidates = collectSemanticCandidateCvs(jobEmbeddings, poolSize);
+
+        Set<UUID> candidateCvIds = new HashSet<>();
+        candidateCvIds.addAll(ftsBundle.scores().keySet());
+        candidateCvIds.addAll(semanticCandidates);
+        if (candidateCvIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Cv> cvs = cvRepository.findByIdInAndCandidate_OpenToWorkTrue(new ArrayList<>(candidateCvIds));
+        if (cvs.isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> openToWorkCvIds = cvs.stream()
+                .map(Cv::getId)
+                .collect(Collectors.toSet());
+        Map<UUID, Cv> cvMap = cvs.stream()
+                .collect(Collectors.toMap(Cv::getId, cv -> cv));
+        Map<UUID, List<CvEmbedding>> cvEmbeddingMap = loadCvEmbeddings(openToWorkCvIds);
+
+        Map<UUID, Set<String>> candidateSkills = loadCandidateSkills(cvs);
+        List<JobSkill> jobSkills = jobSkillRepository.findByJob_Id(jobId);
+
+        List<ScoredId> scored = new ArrayList<>();
+        for (UUID cvId : openToWorkCvIds) {
+            Cv cv = cvMap.get(cvId);
+            if (cv == null) {
+                continue;
+            }
+            List<CvEmbedding> cvEmbeddings = cvEmbeddingMap.getOrDefault(cvId, List.of());
+            SemanticScore semanticScore = computeSemanticScore(jobEmbeddings, cvEmbeddings);
+            Set<String> skills = candidateSkills.get(cv.getCandidate().getUserId());
+            Double skillScore = computeSkillScore(skills, jobSkills);
+            Double ftsScore = ftsBundle.enabled()
+                    ? ftsBundle.scores().getOrDefault(cvId, 0.0)
+                    : null;
+            Double finalScore = combineHybridScores(
+                    semanticScore == null ? null : semanticScore.getScore(),
+                    ftsScore,
+                    skillScore
+            );
+            if (finalScore == null) {
+                continue;
+            }
+            scored.add(new ScoredId(cvId, finalScore));
+        }
+
+        scored.sort(scoredComparator());
+        return scored.stream()
+                .limit(safeTopK)
+                .map(item -> {
+                    Cv cv = cvMap.get(item.id());
+                    if (cv == null) {
+                        return null;
+                    }
+                    CvItemResponse cvItem = CvItemResponse.builder()
+                            .id(cv.getId())
+                            .cvName(cv.getCvName())
+                            .uploadedAt(cv.getUploadedAt())
+                            .isDefault(Boolean.TRUE.equals(cv.getIsDefault()))
+                            .aiStatus(cv.getAiStatus())
+                            .build();
+                    return CvRecommendationResponse.builder()
+                            .cv(cvItem)
+                            .matchScore(toPercentValue(item.score()))
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private Cv resolveCv(UUID candidateUserId, UUID cvId) {
@@ -180,14 +217,455 @@ public class JobMatchService {
                 .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
     }
 
-    private JobEmbedding findJobEmbedding(List<JobEmbedding> embeddings, JobEmbeddingType type) {
-        if (embeddings == null) {
+    private int clampTopK(int topK) {
+        int max = Math.max(hybridMatchingProperties.getMaxLimit(), 1);
+        if (topK <= 0) {
+            return 1;
+        }
+        return Math.min(topK, max);
+    }
+
+    private int resolveCandidatePoolSize(int topK) {
+        int base = Math.max(hybridMatchingProperties.getCandidatePoolSize(), 1);
+        return Math.max(base, topK);
+    }
+
+    private SemanticScoreBundle computeSemanticScoresForJobs(Cv cv, String status, int poolSize) {
+        List<CvEmbedding> cvEmbeddings = cvEmbeddingRepository.findByCvId(cv.getId());
+        CvEmbedding cvSkills = findCvEmbedding(cvEmbeddings, EmbeddingType.SKILLS, null, null);
+        CvEmbedding cvExperience = findCvEmbedding(cvEmbeddings, EmbeddingType.EXPERIENCE, null, null);
+
+        Map<UUID, Double> skillsScores = loadSimilarityScores(cvSkills, JobEmbeddingType.SKILLS, poolSize, status);
+        Map<UUID, Double> descriptionScores = loadSimilarityScores(cvExperience, JobEmbeddingType.DESCRIPTION, poolSize, status);
+        Map<UUID, Double> requiredBySkills = loadSimilarityScores(cvSkills, JobEmbeddingType.REQUIRED_REQUIREMENTS, poolSize, status);
+        Map<UUID, Double> requiredByExperience = loadSimilarityScores(cvExperience, JobEmbeddingType.REQUIRED_REQUIREMENTS, poolSize, status);
+        Map<UUID, Double> requiredScores = mergeMax(requiredBySkills, requiredByExperience);
+
+        Map<UUID, Double> preferredBySkills = loadSimilarityScores(cvSkills, JobEmbeddingType.PREFERRED_REQUIREMENTS, poolSize, status);
+        Map<UUID, Double> preferredByExperience = loadSimilarityScores(cvExperience, JobEmbeddingType.PREFERRED_REQUIREMENTS, poolSize, status);
+        Map<UUID, Double> preferredScores = mergeMax(preferredBySkills, preferredByExperience);
+
+        Set<UUID> candidateIds = new HashSet<>();
+        candidateIds.addAll(skillsScores.keySet());
+        candidateIds.addAll(descriptionScores.keySet());
+        candidateIds.addAll(requiredScores.keySet());
+        candidateIds.addAll(preferredScores.keySet());
+
+        Map<UUID, Double> semanticScores = new HashMap<>();
+        for (UUID jobId : candidateIds) {
+            Double skills = skillsScores.get(jobId);
+            Double description = descriptionScores.get(jobId);
+            Double required = requiredScores.get(jobId);
+            Double preferred = preferredScores.get(jobId);
+            Double requirements = combineRequiredPreferred(required, preferred);
+            Double semanticScore = combineSemanticScores(skills, description, requirements);
+            if (semanticScore != null) {
+                semanticScores.put(jobId, semanticScore);
+            }
+        }
+
+        return new SemanticScoreBundle(semanticScores);
+    }
+
+    private FtsScoreBundle computeJobFtsScores(Cv cv, String status, int poolSize) {
+        String query = buildFtsQueryFromCv(cv);
+        if (query == null) {
+            return new FtsScoreBundle(Map.of(), false);
+        }
+        List<JobRepository.JobFtsView> rows = jobRepository.searchJobsByFts(query, status, poolSize);
+        return new FtsScoreBundle(normalizeFtsJobRows(rows), true);
+    }
+
+    private FtsScoreBundle computeCvFtsScores(Job job, int poolSize) {
+        String query = buildFtsQueryFromJob(job);
+        if (query == null) {
+            return new FtsScoreBundle(Map.of(), false);
+        }
+        List<CvRepository.CvFtsView> rows = cvRepository.searchCvsByFts(query, null, poolSize);
+        return new FtsScoreBundle(normalizeFtsCvRows(rows), true);
+    }
+
+    private String buildFtsQueryFromCv(Cv cv) {
+        if (cv == null) {
             return null;
         }
+        String text = firstNonBlank(cv.getNormalizedText(), cv.getRawText());
+        return normalizeFtsQuery(text);
+    }
+
+    private String buildFtsQueryFromJob(Job job) {
+        if (job == null) {
+            return null;
+        }
+        String text = firstNonBlank(job.getNormalizedText(), job.getDescription());
+        if (job.getTitle() != null && !job.getTitle().isBlank()) {
+            text = text == null ? job.getTitle() : job.getTitle() + " " + text;
+        }
+        return normalizeFtsQuery(text);
+    }
+
+    private String normalizeFtsQuery(String text) {
+        if (text == null) {
+            return null;
+        }
+        String normalized = text.replaceAll("\\s+", " ").trim();
+        if (normalized.isBlank()) {
+            return null;
+        }
+        if (normalized.length() > MAX_FTS_QUERY_LENGTH) {
+            return normalized.substring(0, MAX_FTS_QUERY_LENGTH);
+        }
+        return normalized;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        if (second != null && !second.isBlank()) {
+            return second;
+        }
+        return null;
+    }
+
+    private Map<UUID, Double> normalizeFtsJobRows(List<JobRepository.JobFtsView> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        double maxRank = rows.stream()
+                .map(JobRepository.JobFtsView::getRank)
+                .filter(Objects::nonNull)
+                .max(Double::compareTo)
+                .orElse(0.0);
+        if (maxRank <= 0.0) {
+            return Map.of();
+        }
+        Map<UUID, Double> scores = new HashMap<>();
+        for (JobRepository.JobFtsView row : rows) {
+            if (row.getJobId() != null && row.getRank() != null) {
+                scores.put(row.getJobId(), clampScore(row.getRank() / maxRank));
+            }
+        }
+        return scores;
+    }
+
+    private Map<UUID, Double> normalizeFtsCvRows(List<CvRepository.CvFtsView> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        double maxRank = rows.stream()
+                .map(CvRepository.CvFtsView::getRank)
+                .filter(Objects::nonNull)
+                .max(Double::compareTo)
+                .orElse(0.0);
+        if (maxRank <= 0.0) {
+            return Map.of();
+        }
+        Map<UUID, Double> scores = new HashMap<>();
+        for (CvRepository.CvFtsView row : rows) {
+            if (row.getCvId() != null && row.getRank() != null) {
+                scores.put(row.getCvId(), clampScore(row.getRank() / maxRank));
+            }
+        }
+        return scores;
+    }
+
+    private Map<UUID, Double> computeSkillScoresForJobs(UUID candidateUserId, Collection<UUID> jobIds) {
+        Set<String> candidateSkills = loadCandidateSkillNames(candidateUserId);
+        if (candidateSkills.isEmpty() || jobIds == null || jobIds.isEmpty()) {
+            return Map.of();
+        }
+        List<JobSkill> jobSkills = jobSkillRepository.findByJob_IdIn(new ArrayList<>(jobIds));
+        Map<UUID, List<JobSkill>> jobSkillMap = jobSkills.stream()
+                .collect(Collectors.groupingBy(skill -> skill.getJob().getId()));
+
+        Map<UUID, Double> scores = new HashMap<>();
+        for (UUID jobId : jobIds) {
+            Double score = computeSkillScore(candidateSkills, jobSkillMap.get(jobId));
+            if (score != null) {
+                scores.put(jobId, score);
+            }
+        }
+        return scores;
+    }
+
+    private Double computeSkillScoreForCandidate(UUID candidateUserId, UUID jobId) {
+        Set<String> candidateSkills = loadCandidateSkillNames(candidateUserId);
+        if (candidateSkills.isEmpty()) {
+            return null;
+        }
+        List<JobSkill> jobSkills = jobSkillRepository.findByJob_Id(jobId);
+        return computeSkillScore(candidateSkills, jobSkills);
+    }
+
+    private Set<String> loadCandidateSkillNames(UUID candidateUserId) {
+        if (candidateUserId == null) {
+            return Set.of();
+        }
+        return candidateSkillRepository.findByCandidateUserId(candidateUserId).stream()
+                .map(mapping -> mapping.getSkill().getName())
+                .filter(Objects::nonNull)
+                .map(name -> name.trim().toLowerCase())
+                .filter(name -> !name.isBlank())
+                .collect(Collectors.toSet());
+    }
+
+    private Map<UUID, Set<String>> loadCandidateSkills(List<Cv> cvs) {
+        if (cvs == null || cvs.isEmpty()) {
+            return Map.of();
+        }
+        Set<UUID> candidateIds = cvs.stream()
+                .map(cv -> cv.getCandidate().getUserId())
+                .collect(Collectors.toSet());
+        if (candidateIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, Set<String>> skillMap = new HashMap<>();
+        candidateSkillRepository.findByCandidateUserIdIn(new ArrayList<>(candidateIds)).forEach(mapping -> {
+            UUID candidateId = mapping.getId().getCandidateId();
+            String name = mapping.getSkill().getName();
+            if (candidateId == null || name == null) {
+                return;
+            }
+            String normalized = name.trim().toLowerCase();
+            if (normalized.isBlank()) {
+                return;
+            }
+            skillMap.computeIfAbsent(candidateId, key -> new HashSet<>()).add(normalized);
+        });
+        return skillMap;
+    }
+
+    private Double computeSkillScore(Set<String> candidateSkills, List<JobSkill> jobSkills) {
+        if (candidateSkills == null || candidateSkills.isEmpty() || jobSkills == null || jobSkills.isEmpty()) {
+            return null;
+        }
+        long requiredTotal = jobSkills.stream()
+                .filter(skill -> skill.getRequirementType() == RequirementSectionType.REQUIRED)
+                .count();
+        long preferredTotal = jobSkills.stream()
+                .filter(skill -> skill.getRequirementType() == RequirementSectionType.PREFERRED)
+                .count();
+        long otherTotal = jobSkills.stream()
+                .filter(skill -> skill.getRequirementType() == RequirementSectionType.OTHER)
+                .count();
+
+        long requiredMatched = jobSkills.stream()
+                .filter(skill -> skill.getRequirementType() == RequirementSectionType.REQUIRED)
+                .map(this::normalizeSkillName)
+                .filter(Objects::nonNull)
+                .filter(candidateSkills::contains)
+                .count();
+        long preferredMatched = jobSkills.stream()
+                .filter(skill -> skill.getRequirementType() == RequirementSectionType.PREFERRED)
+                .map(this::normalizeSkillName)
+                .filter(Objects::nonNull)
+                .filter(candidateSkills::contains)
+                .count();
+        long otherMatched = jobSkills.stream()
+                .filter(skill -> skill.getRequirementType() == RequirementSectionType.OTHER)
+                .map(this::normalizeSkillName)
+                .filter(Objects::nonNull)
+                .filter(candidateSkills::contains)
+                .count();
+
+        Double requiredScore = requiredTotal > 0 ? (double) requiredMatched / requiredTotal : null;
+        Double preferredScore = preferredTotal > 0 ? (double) preferredMatched / preferredTotal : null;
+
+        if (requiredScore == null && preferredScore == null) {
+            if (otherTotal > 0) {
+                return clampScore((double) otherMatched / otherTotal);
+            }
+            return null;
+        }
+
+        if (requiredScore == null) {
+            return clampScore(preferredScore);
+        }
+        if (preferredScore == null) {
+            return clampScore(requiredScore);
+        }
+
+        double requiredWeight = Math.max(hybridMatchingProperties.getRequiredSkillWeight(), 0.0);
+        double preferredWeight = Math.max(hybridMatchingProperties.getPreferredSkillWeight(), 0.0);
+        double totalWeight = requiredWeight + preferredWeight;
+        if (totalWeight <= 0.0) {
+            totalWeight = 1.0;
+            requiredWeight = 1.0;
+            preferredWeight = 0.0;
+        }
+        double normalizedRequired = requiredWeight / totalWeight;
+        double normalizedPreferred = preferredWeight / totalWeight;
+
+        return clampScore((normalizedRequired * requiredScore) + (normalizedPreferred * preferredScore));
+    }
+
+    private Set<UUID> collectSemanticCandidateCvs(List<JobEmbedding> jobEmbeddings, int poolSize) {
+        Set<UUID> candidates = new HashSet<>();
+        JobEmbedding jobSkills = findJobEmbedding(jobEmbeddings, JobEmbeddingType.SKILLS);
+        JobEmbedding jobDescription = findJobEmbedding(jobEmbeddings, JobEmbeddingType.DESCRIPTION);
+        JobEmbedding jobRequired = findJobEmbedding(jobEmbeddings, JobEmbeddingType.REQUIRED_REQUIREMENTS);
+        JobEmbedding jobPreferred = findJobEmbedding(jobEmbeddings, JobEmbeddingType.PREFERRED_REQUIREMENTS);
+
+        candidates.addAll(findTopCvIds(jobSkills, EmbeddingType.SKILLS, poolSize));
+        candidates.addAll(findTopCvIds(jobDescription, EmbeddingType.EXPERIENCE, poolSize));
+        candidates.addAll(findTopCvIds(jobRequired, EmbeddingType.SKILLS, poolSize));
+        candidates.addAll(findTopCvIds(jobRequired, EmbeddingType.EXPERIENCE, poolSize));
+        candidates.addAll(findTopCvIds(jobPreferred, EmbeddingType.SKILLS, poolSize));
+        candidates.addAll(findTopCvIds(jobPreferred, EmbeddingType.EXPERIENCE, poolSize));
+        return candidates;
+    }
+
+    private List<UUID> findTopCvIds(JobEmbedding jobEmbedding, EmbeddingType cvType, int poolSize) {
+        if (jobEmbedding == null || jobEmbedding.getVector() == null) {
+            return List.of();
+        }
+        if (jobEmbedding.getModel() == null || jobEmbedding.getDimensions() == null) {
+            return List.of();
+        }
+        String vectorLiteral = VectorSearchUtil.toVectorLiteral(jobEmbedding.getVector());
+        return cvEmbeddingRepository.findTopMatchingCvIdsByTypeAndModelAndDimensions(
+                vectorLiteral,
+                cvType.name(),
+                jobEmbedding.getModel(),
+                jobEmbedding.getDimensions(),
+                poolSize
+        );
+    }
+
+    private Map<UUID, List<CvEmbedding>> loadCvEmbeddings(Collection<UUID> cvIds) {
+        if (cvIds == null || cvIds.isEmpty()) {
+            return Map.of();
+        }
+        List<CvEmbedding> embeddings = cvEmbeddingRepository.findByCvIdIn(new ArrayList<>(cvIds));
         return embeddings.stream()
-                .filter(embedding -> embedding.getEmbeddingType() == type)
-                .findFirst()
-                .orElse(null);
+                .collect(Collectors.groupingBy(embedding -> embedding.getCv().getId()));
+    }
+
+    private SemanticScore computeSemanticScore(List<JobEmbedding> jobEmbeddings, List<CvEmbedding> cvEmbeddings) {
+        JobEmbedding jobSkills = findJobEmbedding(jobEmbeddings, JobEmbeddingType.SKILLS);
+        JobEmbedding jobDescription = findJobEmbedding(jobEmbeddings, JobEmbeddingType.DESCRIPTION);
+        JobEmbedding jobRequired = findJobEmbedding(jobEmbeddings, JobEmbeddingType.REQUIRED_REQUIREMENTS);
+        JobEmbedding jobPreferred = findJobEmbedding(jobEmbeddings, JobEmbeddingType.PREFERRED_REQUIREMENTS);
+
+        if (jobSkills == null && jobDescription == null && jobRequired == null && jobPreferred == null) {
+            return null;
+        }
+
+        String skillModel = firstNonNull(
+                jobSkills == null ? null : jobSkills.getModel(),
+                jobRequired == null ? null : jobRequired.getModel(),
+                jobPreferred == null ? null : jobPreferred.getModel()
+        );
+        Integer skillDimensions = firstNonNull(
+                jobSkills == null ? null : jobSkills.getDimensions(),
+                jobRequired == null ? null : jobRequired.getDimensions(),
+                jobPreferred == null ? null : jobPreferred.getDimensions()
+        );
+        String expModel = firstNonNull(
+                jobDescription == null ? null : jobDescription.getModel(),
+                jobRequired == null ? null : jobRequired.getModel(),
+                jobPreferred == null ? null : jobPreferred.getModel()
+        );
+        Integer expDimensions = firstNonNull(
+                jobDescription == null ? null : jobDescription.getDimensions(),
+                jobRequired == null ? null : jobRequired.getDimensions(),
+                jobPreferred == null ? null : jobPreferred.getDimensions()
+        );
+
+        CvEmbedding cvSkills = findCvEmbedding(cvEmbeddings, EmbeddingType.SKILLS, skillModel, skillDimensions);
+        CvEmbedding cvExperience = findCvEmbedding(cvEmbeddings, EmbeddingType.EXPERIENCE, expModel, expDimensions);
+
+        Double skillsSim = normalizeSimilarity(cosineSimilarity(
+                jobSkills == null ? null : jobSkills.getVector(),
+                cvSkills == null ? null : cvSkills.getVector()));
+        Double descriptionSim = normalizeSimilarity(cosineSimilarity(
+                jobDescription == null ? null : jobDescription.getVector(),
+                cvExperience == null ? null : cvExperience.getVector()));
+        Double requiredSim = normalizeSimilarity(maxSimilarity(jobRequired, cvSkills, cvExperience));
+        Double preferredSim = jobPreferred == null ? null
+                : normalizeSimilarity(maxSimilarity(jobPreferred, cvSkills, cvExperience));
+
+        Double requirementsScore = combineRequiredPreferred(requiredSim, preferredSim);
+        Double semanticScore = combineSemanticScores(skillsSim, descriptionSim, requirementsScore);
+        if (semanticScore == null) {
+            return null;
+        }
+
+        return SemanticScore.builder()
+                .score(semanticScore)
+                .skillsScore(skillsSim)
+                .descriptionScore(descriptionSim)
+                .requirementsScore(requirementsScore)
+                .model(jobSkills == null ? null : jobSkills.getModel())
+                .dimensions(jobSkills == null ? null : jobSkills.getDimensions())
+                .build();
+    }
+
+    private Double combineSemanticScores(Double skills, Double description, Double requirements) {
+        double sum = 0.0;
+        double total = 0.0;
+        if (skills != null) {
+            sum += SEMANTIC_SKILLS_WEIGHT * skills;
+            total += SEMANTIC_SKILLS_WEIGHT;
+        }
+        if (description != null) {
+            sum += SEMANTIC_DESCRIPTION_WEIGHT * description;
+            total += SEMANTIC_DESCRIPTION_WEIGHT;
+        }
+        if (requirements != null) {
+            sum += SEMANTIC_REQUIREMENTS_WEIGHT * requirements;
+            total += SEMANTIC_REQUIREMENTS_WEIGHT;
+        }
+        if (total == 0.0) {
+            return null;
+        }
+        return clampScore(sum / total);
+    }
+
+    private Double combineRequiredPreferred(Double required, Double preferred) {
+        if (required == null && preferred == null) {
+            return null;
+        }
+        if (required == null) {
+            return clampScore(preferred);
+        }
+        if (preferred == null) {
+            return clampScore(required);
+        }
+        double requiredWeight = Math.max(hybridMatchingProperties.getRequiredSkillWeight(), 0.0);
+        double preferredWeight = Math.max(hybridMatchingProperties.getPreferredSkillWeight(), 0.0);
+        double total = requiredWeight + preferredWeight;
+        if (total <= 0.0) {
+            return clampScore(required);
+        }
+        return clampScore((requiredWeight * required + preferredWeight * preferred) / total);
+    }
+
+    private Double combineHybridScores(Double semanticScore, Double ftsScore, Double skillScore) {
+        double semanticWeight = Math.max(hybridMatchingProperties.getWeights().getSemantic(), 0.0);
+        double ftsWeight = Math.max(hybridMatchingProperties.getWeights().getFts(), 0.0);
+        double skillWeight = Math.max(hybridMatchingProperties.getWeights().getSkills(), 0.0);
+
+        double sum = 0.0;
+        double total = 0.0;
+        if (semanticScore != null) {
+            sum += semanticWeight * semanticScore;
+            total += semanticWeight;
+        }
+        if (ftsScore != null) {
+            sum += ftsWeight * ftsScore;
+            total += ftsWeight;
+        }
+        if (skillScore != null) {
+            sum += skillWeight * skillScore;
+            total += skillWeight;
+        }
+        if (total == 0.0) {
+            return null;
+        }
+        return clampScore(sum / total);
     }
 
     private CvEmbedding findCvEmbedding(List<CvEmbedding> embeddings, EmbeddingType type, String model, Integer dimensions) {
@@ -203,9 +681,26 @@ public class JobMatchService {
                 .orElse(null);
     }
 
+    private JobEmbedding findJobEmbedding(List<JobEmbedding> embeddings, JobEmbeddingType type) {
+        if (embeddings == null) {
+            return null;
+        }
+        return embeddings.stream()
+                .filter(embedding -> embedding.getEmbeddingType() == type)
+                .findFirst()
+                .orElse(null);
+    }
+
     private Double maxSimilarity(JobEmbedding jobEmbedding, CvEmbedding cvSkills, CvEmbedding cvExperience) {
-        Double skillSim = normalizeSimilarity(cosineSimilarity(jobEmbedding.getVector(), cvSkills.getVector()));
-        Double expSim = normalizeSimilarity(cosineSimilarity(jobEmbedding.getVector(), cvExperience.getVector()));
+        if (jobEmbedding == null) {
+            return null;
+        }
+        Double skillSim = normalizeSimilarity(cosineSimilarity(
+                jobEmbedding.getVector(),
+                cvSkills == null ? null : cvSkills.getVector()));
+        Double expSim = normalizeSimilarity(cosineSimilarity(
+                jobEmbedding.getVector(),
+                cvExperience == null ? null : cvExperience.getVector()));
         if (skillSim == null && expSim == null) {
             return null;
         }
@@ -242,12 +737,27 @@ public class JobMatchService {
         if (similarity == null) {
             return null;
         }
-        return Math.max(0.0, Math.min(1.0, similarity));
+        return clampScore(similarity);
     }
 
-    private int toPercent(double similarity) {
+    private Double clampScore(Double score) {
+        if (score == null) {
+            return null;
+        }
+        return Math.max(0.0, Math.min(1.0, score));
+    }
+
+    private Integer toPercent(Double similarity) {
+        if (similarity == null) {
+            return null;
+        }
         double clamped = Math.max(0.0, Math.min(1.0, similarity));
         return (int) Math.round(clamped * 100.0);
+    }
+
+    private int toPercentValue(Double similarity) {
+        Integer percent = toPercent(similarity);
+        return percent == null ? 0 : percent;
     }
 
     private Map<UUID, Double> loadSimilarityScores(
@@ -256,13 +766,13 @@ public class JobMatchService {
             int topK,
             String status
     ) {
-        if (cvEmbedding.getVector() == null) {
+        if (cvEmbedding == null || cvEmbedding.getVector() == null) {
             return Map.of();
         }
         if (cvEmbedding.getModel() == null || cvEmbedding.getDimensions() == null) {
             return Map.of();
         }
-        String vectorLiteral = toVectorLiteral(cvEmbedding.getVector());
+        String vectorLiteral = VectorSearchUtil.toVectorLiteral(cvEmbedding.getVector());
         List<JobEmbeddingRepository.JobEmbeddingScoreView> rows =
                 jobEmbeddingRepository.findTopJobScoresByTypeModelDimensionsAndStatus(
                         vectorLiteral,
@@ -274,8 +784,10 @@ public class JobMatchService {
                 );
         Map<UUID, Double> scores = new HashMap<>();
         for (JobEmbeddingRepository.JobEmbeddingScoreView row : rows) {
-            double similarity = distanceToSimilarity(row.getDistance());
-            scores.put(row.getJobId(), similarity);
+            Double similarity = clampScore(VectorSearchUtil.distanceToSimilarity(row.getDistance()));
+            if (similarity != null) {
+                scores.put(row.getJobId(), similarity);
+            }
         }
         return scores;
     }
@@ -291,24 +803,61 @@ public class JobMatchService {
         return merged;
     }
 
-    private double distanceToSimilarity(Double distance) {
-        if (distance == null) {
-            return 0.0;
-        }
-        return Math.max(0.0, Math.min(1.0, 1.0 - distance));
+    private Comparator<ScoredId> scoredComparator() {
+        return Comparator.comparing(ScoredId::score).reversed()
+                .thenComparing(ScoredId::id);
     }
 
-    private String toVectorLiteral(float[] vector) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("[");
-        for (int i = 0; i < vector.length; i++) {
-            if (i > 0) {
-                builder.append(",");
-            }
-            builder.append(vector[i]);
+    private String normalizeSkillName(JobSkill jobSkill) {
+        if (jobSkill == null || jobSkill.getSkill() == null || jobSkill.getSkill().getName() == null) {
+            return null;
         }
-        builder.append("]");
-        return builder.toString();
+        String normalized = jobSkill.getSkill().getName().trim().toLowerCase();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private String firstNonNull(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Integer firstNonNull(Integer... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Integer value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private record ScoredId(UUID id, double score) {
+    }
+
+    private record SemanticScoreBundle(Map<UUID, Double> scores) {
+    }
+
+    private record FtsScoreBundle(Map<UUID, Double> scores, boolean enabled) {
+    }
+
+    @Getter
+    @Builder
+    private static class SemanticScore {
+        private Double score;
+        private Double skillsScore;
+        private Double descriptionScore;
+        private Double requirementsScore;
+        private String model;
+        private Integer dimensions;
     }
 
     @Getter
@@ -317,6 +866,9 @@ public class JobMatchService {
         private UUID jobId;
         private UUID cvId;
         private Integer fitScore;
+        private Integer semanticScore;
+        private Integer ftsScore;
+        private Integer skillScore;
         private Integer skillsScore;
         private Integer descriptionScore;
         private Integer requirementsScore;

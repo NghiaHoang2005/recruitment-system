@@ -14,6 +14,8 @@ public interface CvEmbeddingRepository extends JpaRepository<CvEmbedding, UUID> 
 
     List<CvEmbedding> findByCvId(UUID cvId);
 
+    List<CvEmbedding> findByCvIdIn(List<UUID> cvIds);
+
     List<CvEmbedding> findByType(EmbeddingType type);
 
     @Query(value = """
@@ -45,4 +47,31 @@ public interface CvEmbeddingRepository extends JpaRepository<CvEmbedding, UUID> 
             @Param("dimensions") int dimensions,
             @Param("topK") int topK
     );
+
+    @Query(value = """
+        SELECT e.cv_id AS cvId,
+               MIN(e.vector <=> cast(:queryVector as vector)) AS distance
+        FROM cv_embeddings e
+        JOIN cvs c ON c.id = e.cv_id
+        WHERE e.type = :type
+          AND e.model = :model
+          AND e.dimensions = :dimensions
+          AND (:candidateId IS NULL OR c.candidate_id = :candidateId)
+        GROUP BY e.cv_id
+        ORDER BY distance
+        LIMIT :topK
+        """, nativeQuery = true)
+    List<CvEmbeddingScoreView> findTopCvScoresByTypeModelDimensionsAndCandidate(
+            @Param("queryVector") String queryVector,
+            @Param("type") String type,
+            @Param("model") String model,
+            @Param("dimensions") int dimensions,
+            @Param("candidateId") UUID candidateId,
+            @Param("topK") int topK
+    );
+
+    interface CvEmbeddingScoreView {
+        UUID getCvId();
+        Double getDistance();
+    }
 }
