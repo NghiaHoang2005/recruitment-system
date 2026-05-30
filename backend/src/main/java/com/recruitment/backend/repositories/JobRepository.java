@@ -35,4 +35,10 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
         UUID getJobId();
         Double getRank();
     }
+
+    long countByStatus(JobStatus status);
+
+    List<Job> findTop5ByStatusOrderByCreatedAtDesc(JobStatus status);
+
+    List<Job> findTop5ByOrderByCreatedAtDesc();
 }

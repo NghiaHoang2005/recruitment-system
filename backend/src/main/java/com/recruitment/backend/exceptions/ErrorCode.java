@@ -22,6 +22,8 @@ public enum ErrorCode {
     APPLICATION_NOT_FOUND(1014, "Don ung tuyen khong ton tai", HttpStatus.NOT_FOUND),
     APPLICATION_ALREADY_EXISTS(1015, "Ban da ung tuyen cong viec nay", HttpStatus.BAD_REQUEST),
     APPLICATION_INVALID_STATUS(1016, "Trang thai don ung tuyen khong hop le", HttpStatus.BAD_REQUEST),
+    ADMIN_ACCESS_DENIED(1017, "Chi admin moi co quyen thuc hien thao tac nay", HttpStatus.FORBIDDEN),
+    ADMIN_INVALID_MODERATION_ACTION(1018, "Thao tac moderation khong hop le", HttpStatus.BAD_REQUEST),
 
     CV_NOT_FOUND(2001, "CV không tồn tại", HttpStatus.NOT_FOUND),
     CV_PROCESSING_FAILED(2002, "Xử lý CV thất bại", HttpStatus.INTERNAL_SERVER_ERROR),

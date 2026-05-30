@@ -5,6 +5,7 @@ import com.recruitment.backend.domain.enums.ApplicationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -20,4 +21,6 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
     Optional<Application> findByIdAndJob_Company_Id(UUID id, UUID companyId);
     long countByJob_Id(UUID jobId);
     long countByJob_IdIn(Collection<UUID> jobIds);
+    long countByAppliedAtAfter(LocalDateTime appliedAt);
+    List<Application> findTop5ByOrderByAppliedAtDesc();
 }
