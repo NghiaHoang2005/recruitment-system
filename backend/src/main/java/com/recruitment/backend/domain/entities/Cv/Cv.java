@@ -54,9 +54,6 @@ public class Cv {
     @Column(columnDefinition = "jsonb")
     private String parsedData;
 
-    @JdbcTypeCode(SqlTypes.OTHER)
-    @Column(columnDefinition = "tsvector",updatable = false)
-    private String searchTsv;
 
     @CreationTimestamp
     @Column(updatable = false)

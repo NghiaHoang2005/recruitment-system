@@ -484,7 +484,7 @@ public class JobMatchService {
         Map<UUID, Double> scores = new HashMap<>();
         for (JobRepository.JobFtsView row : rows) {
             if (row.getJobId() != null && row.getRank() != null) {
-                scores.put(row.getJobId(), clampScore(row.getRank() / maxRank));
+                scores.put(UUID.fromString(row.getJobId()), clampScore(row.getRank() / maxRank));
             }
         }
         return scores;
@@ -505,7 +505,7 @@ public class JobMatchService {
         Map<UUID, Double> scores = new HashMap<>();
         for (CvRepository.CvFtsView row : rows) {
             if (row.getCvId() != null && row.getRank() != null) {
-                scores.put(row.getCvId(), clampScore(row.getRank() / maxRank));
+                scores.put(UUID.fromString(row.getCvId()), clampScore(row.getRank() / maxRank));
             }
         }
         return scores;
@@ -677,13 +677,14 @@ public class JobMatchService {
             return List.of();
         }
         String vectorLiteral = VectorSearchUtil.toVectorLiteral(jobEmbedding.getVector());
-        return cvEmbeddingRepository.findTopMatchingCvIdsByTypeAndModelAndDimensions(
+        List<String> ids = cvEmbeddingRepository.findTopMatchingCvIdsByTypeAndModelAndDimensions(
                 vectorLiteral,
                 cvType.name(),
                 jobEmbedding.getModel(),
                 jobEmbedding.getDimensions(),
                 poolSize
         );
+        return ids.stream().map(UUID::fromString).collect(Collectors.toList());
     }
 
     private Map<UUID, List<CvEmbedding>> loadCvEmbeddings(Collection<UUID> cvIds) {
@@ -938,7 +939,7 @@ public class JobMatchService {
         for (JobEmbeddingRepository.JobEmbeddingScoreView row : rows) {
             Double similarity = clampScore(VectorSearchUtil.distanceToSimilarity(row.getDistance()));
             if (similarity != null) {
-                scores.put(row.getJobId(), similarity);
+                scores.put(UUID.fromString(row.getJobId()), similarity);
             }
         }
         return scores;

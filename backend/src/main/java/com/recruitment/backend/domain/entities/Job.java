@@ -44,9 +44,6 @@ public class Job {
     @Column(columnDefinition = "jsonb")
     private String parsedData;
 
-    @JdbcTypeCode(SqlTypes.OTHER)
-    @Column(columnDefinition = "tsvector")
-    private String searchTsv;
 
     private String workingTime;
 

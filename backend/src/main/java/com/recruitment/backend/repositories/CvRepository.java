@@ -32,7 +32,7 @@ public interface CvRepository extends JpaRepository<Cv, UUID> {
     void clearDefaultByCandidateId(@Param("candidateId") UUID candidateId);
 
     @Query(value = """
-        SELECT c.id AS cvId,
+        SELECT cast(c.id as varchar) AS cvId,
                ts_rank(c.search_tsv, plainto_tsquery('simple', :query)) AS rank
         FROM cvs c
         WHERE c.search_tsv @@ plainto_tsquery('simple', :query)
@@ -47,7 +47,7 @@ public interface CvRepository extends JpaRepository<Cv, UUID> {
     );
 
     interface CvFtsView {
-        UUID getCvId();
+        String getCvId();
         Double getRank();
     }
 }

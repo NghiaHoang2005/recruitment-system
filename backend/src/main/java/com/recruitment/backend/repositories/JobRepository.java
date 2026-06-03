@@ -17,7 +17,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     long countByCompany_IdAndStatusIn(UUID companyId, Collection<JobStatus> statuses);
 
     @Query(value = """
-        SELECT j.id AS jobId,
+        SELECT cast(j.id as varchar) AS jobId,
                ts_rank(j.search_tsv, plainto_tsquery('simple', :query)) AS rank
         FROM jobs j
         WHERE j.search_tsv @@ plainto_tsquery('simple', :query)
@@ -32,7 +32,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     );
 
     interface JobFtsView {
-        UUID getJobId();
+        String getJobId();
         Double getRank();
     }
 
