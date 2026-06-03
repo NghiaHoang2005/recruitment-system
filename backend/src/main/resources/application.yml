@@ -89,6 +89,7 @@ ai:
 
 matching:
   hybrid:
+    version: ${MATCHING_HYBRID_VERSION:default}
     candidate-pool-size: ${MATCHING_HYBRID_POOL_SIZE:50}
     max-limit: ${MATCHING_HYBRID_MAX_LIMIT:50}
     required-skill-weight: ${MATCHING_HYBRID_REQUIRED_SKILL_WEIGHT:0.7}

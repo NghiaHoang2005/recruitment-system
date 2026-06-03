@@ -14,6 +14,7 @@ public class HybridMatchingProperties {
     private int maxLimit = 50;
     private double requiredSkillWeight = 0.7;
     private double preferredSkillWeight = 0.3;
+    private String version = "default";
 
     @Getter
     @Setter

@@ -5,6 +5,7 @@ import com.recruitment.backend.domain.entities.JobEmbedding;
 import com.recruitment.backend.domain.enums.JobEmbeddingType;
 import com.recruitment.backend.domain.enums.RequirementSectionType;
 import com.recruitment.backend.repositories.JobEmbeddingRepository;
+import com.recruitment.backend.services.CacheManagementService;
 import com.recruitment.backend.services.ai.config.AiProperties;
 import com.recruitment.backend.services.ai.model.EmbeddingResult;
 import jakarta.transaction.Transactional;
@@ -24,6 +25,7 @@ public class JobEmbeddingPipelineService {
     private final EmbeddingBatchService embeddingBatchService;
     private final JobEmbeddingTextBuilder jobEmbeddingTextBuilder;
     private final AiProperties aiProperties;
+    private final CacheManagementService cacheManagementService;
 
     @Transactional
     public void embedAndStore(Job job) {
@@ -66,6 +68,7 @@ public class JobEmbeddingPipelineService {
         jobEmbeddingRepository.saveAll(embeddings);
 
         log.info("Stored {} embeddings for job {}", embeddings.size(), job.getId());
+        cacheManagementService.evictCacheForJob(job.getId());
     }
 
     private List<JobEmbeddingInput> buildJobEmbeddingInputs(Job job) {

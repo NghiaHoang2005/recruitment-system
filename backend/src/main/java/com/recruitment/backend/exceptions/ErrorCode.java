@@ -51,7 +51,15 @@ public enum ErrorCode {
     OTP_REQUIRED(3003, "Vui lòng nhập OTP", HttpStatus.BAD_REQUEST),
     RESET_TOKEN_INVALID_OR_EXPIRED(3004, "Reset token không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
     OTP_TOO_MANY_REQUESTS(3005, "Bạn đã yêu cầu OTP quá thường xuyên. Vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS),
-    CANDIDATE_PROFILE_ALREADY_EXISTS(3006, "Thông tin ứng viên đã tồn tại", HttpStatus.BAD_REQUEST);
+    CANDIDATE_PROFILE_ALREADY_EXISTS(3006, "Thông tin ứng viên đã tồn tại", HttpStatus.BAD_REQUEST),
+
+    MATCHING_WEIGHT_PROFILE_NOT_FOUND(4001, "Weight profile không tồn tại", HttpStatus.NOT_FOUND),
+    MATCHING_DATASET_NOT_FOUND(4002, "Relevance dataset không tồn tại", HttpStatus.NOT_FOUND),
+    MATCHING_EVALUATION_FAILED(4003, "Đánh giá matching thất bại", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    PIPELINE_JOB_NOT_FOUND(5001, "Pipeline job không tồn tại", HttpStatus.NOT_FOUND),
+    PIPELINE_JOB_ALREADY_RUNNING(5002, "Một pipeline job cùng loại đang chạy", HttpStatus.CONFLICT),
+    PIPELINE_JOB_CANNOT_CANCEL(5003, "Pipeline job không thể hủy", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

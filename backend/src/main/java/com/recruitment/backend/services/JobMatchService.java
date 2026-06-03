@@ -54,17 +54,24 @@ public class JobMatchService {
     private final JobSkillRepository jobSkillRepository;
     private final CandidateSkillRepository candidateSkillRepository;
     private final HybridMatchingProperties hybridMatchingProperties;
+    private final MatchingWeightService matchingWeightService;
+    private final MatchingMonitoringService matchingMonitoringService;
 
     public MatchScore matchJob(UUID candidateUserId, UUID jobId, UUID cvId) {
         Cv cv = resolveCv(candidateUserId, cvId);
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
 
+        MatchingWeights weights = matchingWeightService.resolveWeightsForCompany(
+                job.getCompany() != null ? job.getCompany().getId() : null
+        );
+
+        long startTime = System.currentTimeMillis();
         List<CvEmbedding> cvEmbeddings = cvEmbeddingRepository.findByCvId(cv.getId());
         List<JobEmbedding> jobEmbeddings = jobEmbeddingRepository.findByJob_Id(jobId);
 
         SemanticScore semanticScore = computeSemanticScore(jobEmbeddings, cvEmbeddings);
-        Double skillScore = computeSkillScoreForCandidate(candidateUserId, jobId);
+        Double skillScore = computeSkillScoreForCandidate(candidateUserId, jobId, weights);
         FtsScoreBundle ftsBundle = computeJobFtsScores(cv, JobStatus.PUBLISHED.name(), resolveCandidatePoolSize(1));
         Double ftsScore = ftsBundle.enabled()
                 ? ftsBundle.scores().getOrDefault(jobId, 0.0)
@@ -72,8 +79,26 @@ public class JobMatchService {
         Double hybridScore = combineHybridScores(
                 semanticScore == null ? null : semanticScore.getScore(),
                 ftsScore,
-                skillScore
+                skillScore,
+                weights
         );
+        long latencyMs = System.currentTimeMillis() - startTime;
+
+        try {
+            matchingMonitoringService.recordMatchingEvent(
+                    com.recruitment.backend.domain.enums.MatchingRequestType.MATCH,
+                    job.getCompany() != null ? job.getCompany().getId() : null,
+                    jobId,
+                    cv.getId(),
+                    hybridScore,
+                    semanticScore == null ? null : semanticScore.getScore(),
+                    ftsScore,
+                    skillScore,
+                    latencyMs
+            );
+        } catch (Exception e) {
+            // Log but don't fail on monitoring error
+        }
 
         return MatchScore.builder()
                 .jobId(job.getId())
@@ -92,6 +117,30 @@ public class JobMatchService {
 
     public List<RecommendationScore> recommendJobs(UUID candidateUserId, UUID cvId, int topK) {
         Cv cv = resolveCv(candidateUserId, cvId);
+        return recommendJobsInternal(cv, candidateUserId, topK, null, true);
+    }
+
+    public List<RecommendationScore> recommendJobsForEvaluation(UUID cvId, int topK, MatchingWeights weightsOverride) {
+        Cv cv = resolveCvForEvaluation(cvId);
+        UUID candidateUserId = cv.getCandidate() != null ? cv.getCandidate().getUserId() : null;
+        return recommendJobsInternal(cv, candidateUserId, topK, weightsOverride, false);
+    }
+
+    public List<CvRecommendationResponse> recommendCvs(UUID jobId, int topK) {
+        return recommendCvsInternal(jobId, topK, null, true);
+    }
+
+    public List<CvRecommendationResponse> recommendCvsForEvaluation(UUID jobId, int topK, MatchingWeights weightsOverride) {
+        return recommendCvsInternal(jobId, topK, weightsOverride, false);
+    }
+
+    private List<RecommendationScore> recommendJobsInternal(
+            Cv cv,
+            UUID candidateUserId,
+            int topK,
+            MatchingWeights weightsOverride,
+            boolean recordMonitoring
+    ) {
         int safeTopK = clampTopK(topK);
         int poolSize = resolveCandidatePoolSize(safeTopK);
         String status = JobStatus.PUBLISHED.name();
@@ -106,15 +155,33 @@ public class JobMatchService {
             return List.of();
         }
 
-        Map<UUID, Double> skillScores = computeSkillScoresForJobs(candidateUserId, candidateJobIds);
+        Map<UUID, Double> skillScores = weightsOverride != null
+                ? computeSkillScoresForJobs(candidateUserId, candidateJobIds, weightsOverride)
+                : computeSkillScoresForJobs(candidateUserId, candidateJobIds);
+        List<Job> jobs = jobRepository.findAll().stream()
+                .filter(j -> candidateJobIds.contains(j.getId()))
+                .collect(Collectors.toList());
+        Map<UUID, Job> jobsMap = jobs.stream()
+                .collect(Collectors.toMap(Job::getId, j -> j));
+
         List<ScoredId> scored = new ArrayList<>();
+        long startTime = System.currentTimeMillis();
         for (UUID jobId : candidateJobIds) {
+            Job job = jobsMap.get(jobId);
+            if (job == null) continue;
+
+            MatchingWeights weights = weightsOverride != null
+                    ? weightsOverride
+                    : matchingWeightService.resolveWeightsForCompany(
+                    job.getCompany() != null ? job.getCompany().getId() : null
+            );
+
             Double semanticScore = semanticScores.scores().get(jobId);
             Double ftsScore = ftsBundle.enabled()
                     ? ftsBundle.scores().getOrDefault(jobId, 0.0)
                     : null;
             Double skillScore = skillScores.get(jobId);
-            Double finalScore = combineHybridScores(semanticScore, ftsScore, skillScore);
+            Double finalScore = combineHybridScores(semanticScore, ftsScore, skillScore, weights);
             if (finalScore == null) {
                 continue;
             }
@@ -122,19 +189,56 @@ public class JobMatchService {
         }
 
         scored.sort(scoredComparator());
-        return scored.stream()
+        List<RecommendationScore> results = scored.stream()
                 .limit(safeTopK)
                 .map(item -> new RecommendationScore(item.id(), toPercentValue(item.score())))
                 .toList();
+
+        if (recordMonitoring) {
+            long latencyMs = System.currentTimeMillis() - startTime;
+            try {
+                for (RecommendationScore result : results) {
+                    Job job = jobsMap.get(result.jobId);
+                    if (job != null) {
+                        matchingMonitoringService.recordMatchingEvent(
+                                com.recruitment.backend.domain.enums.MatchingRequestType.RECOMMEND_JOBS,
+                                job.getCompany() != null ? job.getCompany().getId() : null,
+                                job.getId(),
+                                cv.getId(),
+                                result.fitScore / 100.0,
+                                null,
+                                null,
+                                null,
+                                latencyMs / results.size()
+                        );
+                    }
+                }
+            } catch (Exception e) {
+                // Log but don't fail on monitoring error
+            }
+        }
+
+        return results;
     }
 
-    public List<CvRecommendationResponse> recommendCvs(UUID jobId, int topK) {
+    private List<CvRecommendationResponse> recommendCvsInternal(
+            UUID jobId,
+            int topK,
+            MatchingWeights weightsOverride,
+            boolean recordMonitoring
+    ) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
 
         int safeTopK = clampTopK(topK);
         int poolSize = resolveCandidatePoolSize(safeTopK);
         List<JobEmbedding> jobEmbeddings = jobEmbeddingRepository.findByJob_Id(jobId);
+
+        MatchingWeights weights = weightsOverride != null
+                ? weightsOverride
+                : matchingWeightService.resolveWeightsForCompany(
+                job.getCompany() != null ? job.getCompany().getId() : null
+        );
 
         FtsScoreBundle ftsBundle = computeCvFtsScores(job, poolSize);
         Set<UUID> semanticCandidates = collectSemanticCandidateCvs(jobEmbeddings, poolSize);
@@ -161,6 +265,7 @@ public class JobMatchService {
         List<JobSkill> jobSkills = jobSkillRepository.findByJob_Id(jobId);
 
         List<ScoredId> scored = new ArrayList<>();
+        long startTime = System.currentTimeMillis();
         for (UUID cvId : openToWorkCvIds) {
             Cv cv = cvMap.get(cvId);
             if (cv == null) {
@@ -169,14 +274,15 @@ public class JobMatchService {
             List<CvEmbedding> cvEmbeddings = cvEmbeddingMap.getOrDefault(cvId, List.of());
             SemanticScore semanticScore = computeSemanticScore(jobEmbeddings, cvEmbeddings);
             Set<String> skills = candidateSkills.get(cv.getCandidate().getUserId());
-            Double skillScore = computeSkillScore(skills, jobSkills);
+            Double skillScore = computeSkillScore(skills, jobSkills, weights);
             Double ftsScore = ftsBundle.enabled()
                     ? ftsBundle.scores().getOrDefault(cvId, 0.0)
                     : null;
             Double finalScore = combineHybridScores(
                     semanticScore == null ? null : semanticScore.getScore(),
                     ftsScore,
-                    skillScore
+                    skillScore,
+                    weights
             );
             if (finalScore == null) {
                 continue;
@@ -185,7 +291,7 @@ public class JobMatchService {
         }
 
         scored.sort(scoredComparator());
-        return scored.stream()
+        List<CvRecommendationResponse> results = scored.stream()
                 .limit(safeTopK)
                 .map(item -> {
                     Cv cv = cvMap.get(item.id());
@@ -202,10 +308,37 @@ public class JobMatchService {
                     return CvRecommendationResponse.builder()
                             .cv(cvItem)
                             .matchScore(toPercentValue(item.score()))
+                            .candidateId(cv.getCandidate() != null ? cv.getCandidate().getUserId() : null)
+                            .candidateName(cv.getCandidate() != null ? cv.getCandidate().getFullName() : null)
+                            .candidateHeadline(cv.getCandidate() != null ? cv.getCandidate().getHeadline() : null)
+                            .candidateAvatar(cv.getCandidate() != null ? cv.getCandidate().getProfilePictureUrl() : null)
                             .build();
                 })
                 .filter(Objects::nonNull)
                 .toList();
+
+        if (recordMonitoring) {
+            long latencyMs = System.currentTimeMillis() - startTime;
+            try {
+                for (CvRecommendationResponse result : results) {
+                    matchingMonitoringService.recordMatchingEvent(
+                            com.recruitment.backend.domain.enums.MatchingRequestType.RECOMMEND_CVS,
+                            job.getCompany() != null ? job.getCompany().getId() : null,
+                            jobId,
+                            result.getCv().getId(),
+                            result.getMatchScore() / 100.0,
+                            null,
+                            null,
+                            null,
+                            latencyMs / results.size()
+                    );
+                }
+            } catch (Exception e) {
+                // Log but don't fail on monitoring error
+            }
+        }
+
+        return results;
     }
 
     private Cv resolveCv(UUID candidateUserId, UUID cvId) {
@@ -214,6 +347,14 @@ public class JobMatchService {
                     .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
         }
         return cvRepository.findFirstByCandidateUserIdOrderByIsDefaultDescUploadedAtDesc(candidateUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
+    }
+
+    private Cv resolveCvForEvaluation(UUID cvId) {
+        if (cvId == null) {
+            throw new AppException(ErrorCode.CV_NOT_FOUND);
+        }
+        return cvRepository.findById(cvId)
                 .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
     }
 
@@ -371,6 +512,14 @@ public class JobMatchService {
     }
 
     private Map<UUID, Double> computeSkillScoresForJobs(UUID candidateUserId, Collection<UUID> jobIds) {
+        return computeSkillScoresForJobs(candidateUserId, jobIds, null);
+    }
+
+    private Map<UUID, Double> computeSkillScoresForJobs(
+            UUID candidateUserId,
+            Collection<UUID> jobIds,
+            MatchingWeights weightsOverride
+    ) {
         Set<String> candidateSkills = loadCandidateSkillNames(candidateUserId);
         if (candidateSkills.isEmpty() || jobIds == null || jobIds.isEmpty()) {
             return Map.of();
@@ -379,9 +528,12 @@ public class JobMatchService {
         Map<UUID, List<JobSkill>> jobSkillMap = jobSkills.stream()
                 .collect(Collectors.groupingBy(skill -> skill.getJob().getId()));
 
+        MatchingWeights defaultWeights = weightsOverride != null
+                ? weightsOverride
+                : MatchingWeights.fromConfig(hybridMatchingProperties);
         Map<UUID, Double> scores = new HashMap<>();
         for (UUID jobId : jobIds) {
-            Double score = computeSkillScore(candidateSkills, jobSkillMap.get(jobId));
+            Double score = computeSkillScore(candidateSkills, jobSkillMap.get(jobId), defaultWeights);
             if (score != null) {
                 scores.put(jobId, score);
             }
@@ -389,13 +541,13 @@ public class JobMatchService {
         return scores;
     }
 
-    private Double computeSkillScoreForCandidate(UUID candidateUserId, UUID jobId) {
+    private Double computeSkillScoreForCandidate(UUID candidateUserId, UUID jobId, MatchingWeights weights) {
         Set<String> candidateSkills = loadCandidateSkillNames(candidateUserId);
         if (candidateSkills.isEmpty()) {
             return null;
         }
         List<JobSkill> jobSkills = jobSkillRepository.findByJob_Id(jobId);
-        return computeSkillScore(candidateSkills, jobSkills);
+        return computeSkillScore(candidateSkills, jobSkills, weights);
     }
 
     private Set<String> loadCandidateSkillNames(UUID candidateUserId) {
@@ -437,7 +589,7 @@ public class JobMatchService {
         return skillMap;
     }
 
-    private Double computeSkillScore(Set<String> candidateSkills, List<JobSkill> jobSkills) {
+    private Double computeSkillScore(Set<String> candidateSkills, List<JobSkill> jobSkills, MatchingWeights weights) {
         if (candidateSkills == null || candidateSkills.isEmpty() || jobSkills == null || jobSkills.isEmpty()) {
             return null;
         }
@@ -487,8 +639,8 @@ public class JobMatchService {
             return clampScore(requiredScore);
         }
 
-        double requiredWeight = Math.max(hybridMatchingProperties.getRequiredSkillWeight(), 0.0);
-        double preferredWeight = Math.max(hybridMatchingProperties.getPreferredSkillWeight(), 0.0);
+        double requiredWeight = Math.max(weights.requiredSkillWeight(), 0.0);
+        double preferredWeight = Math.max(weights.preferredSkillWeight(), 0.0);
         double totalWeight = requiredWeight + preferredWeight;
         if (totalWeight <= 0.0) {
             totalWeight = 1.0;
@@ -643,10 +795,10 @@ public class JobMatchService {
         return clampScore((requiredWeight * required + preferredWeight * preferred) / total);
     }
 
-    private Double combineHybridScores(Double semanticScore, Double ftsScore, Double skillScore) {
-        double semanticWeight = Math.max(hybridMatchingProperties.getWeights().getSemantic(), 0.0);
-        double ftsWeight = Math.max(hybridMatchingProperties.getWeights().getFts(), 0.0);
-        double skillWeight = Math.max(hybridMatchingProperties.getWeights().getSkills(), 0.0);
+    private Double combineHybridScores(Double semanticScore, Double ftsScore, Double skillScore, MatchingWeights weights) {
+        double semanticWeight = Math.max(weights.semanticWeight(), 0.0);
+        double ftsWeight = Math.max(weights.ftsWeight(), 0.0);
+        double skillWeight = Math.max(weights.skillsWeight(), 0.0);
 
         double sum = 0.0;
         double total = 0.0;
