@@ -119,6 +119,10 @@ public class AuthService {
     public AuthResponse authenticate(AuthRequest request) {
         User user = userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
+        if (Boolean.FALSE.equals(user.getEnabled())) {
+            throw new AppException(ErrorCode.USER_DISABLED);
+        }
+
         boolean authenticated = passwordEncoder.matches(request.getPassword(), user.getPassword());
         if(!authenticated){
             throw new AppException(ErrorCode.UNAUTHENTICATED);

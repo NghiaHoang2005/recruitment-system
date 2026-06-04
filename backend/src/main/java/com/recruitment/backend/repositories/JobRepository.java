@@ -1,7 +1,10 @@
 package com.recruitment.backend.repositories;
 
 import com.recruitment.backend.domain.entities.Job;
+import com.recruitment.backend.domain.enums.CompanyStatus;
 import com.recruitment.backend.domain.enums.JobStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Collection;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Repository
@@ -41,4 +45,32 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     List<Job> findTop5ByStatusOrderByCreatedAtDesc(JobStatus status);
 
     List<Job> findTop5ByOrderByCreatedAtDesc();
+
+    List<Job> findByCompany_IdAndStatus(UUID companyId, JobStatus status);
+
+    long countByCreatedAtAfter(LocalDateTime createdAt);
+
+    List<Job> findByCreatedAtAfter(LocalDateTime createdAt);
+
+    @Query("""
+            select j from Job j
+            left join j.company c
+            where (:status is null or j.status = :status)
+              and (:companyStatus is null or c.status = :companyStatus)
+              and (:fromDate is null or j.createdAt >= :fromDate)
+              and (:toDate is null or j.createdAt <= :toDate)
+              and (
+                :keyword is null
+                or lower(j.title) like lower(concat('%', :keyword, '%'))
+                or lower(c.name) like lower(concat('%', :keyword, '%'))
+              )
+            """)
+    Page<Job> searchAdminJobs(
+            @Param("keyword") String keyword,
+            @Param("status") JobStatus status,
+            @Param("companyStatus") CompanyStatus companyStatus,
+            @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate,
+            Pageable pageable
+    );
 }

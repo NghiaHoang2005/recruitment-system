@@ -26,4 +26,5 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, UU
     List<CompanyMember> findByCompany_IdAndJoinStatus(UUID companyId, JoinStatus status);
     long countByCompany_IdAndJoinStatus(UUID companyId, JoinStatus status);
     Optional<CompanyMember> findByCompany_IdAndUser_IdAndJoinStatus(UUID companyId, UUID userId, JoinStatus status);
+    Optional<CompanyMember> findFirstByCompany_IdAndRoleAndJoinStatus(UUID companyId, CompanyRole role, JoinStatus status);
 }
