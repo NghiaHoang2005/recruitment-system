@@ -409,21 +409,15 @@ public class JobMatchService {
     }
 
     private FtsScoreBundle computeJobFtsScores(Cv cv, String status, int poolSize) {
-        String query = buildFtsQueryFromCv(cv);
-        if (query == null) {
-            return new FtsScoreBundle(Map.of(), false);
-        }
-        List<JobRepository.JobFtsView> rows = jobRepository.searchJobsByFts(query, status, poolSize);
-        return new FtsScoreBundle(normalizeFtsJobRows(rows), true);
+        // FTS is disabled for AI Document-to-Document matching to prevent redundancy and false negatives.
+        // We rely 100% on Semantic Search and Skill Matching instead.
+        return new FtsScoreBundle(Map.of(), false);
     }
 
     private FtsScoreBundle computeCvFtsScores(Job job, int poolSize) {
-        String query = buildFtsQueryFromJob(job);
-        if (query == null) {
-            return new FtsScoreBundle(Map.of(), false);
-        }
-        List<CvRepository.CvFtsView> rows = cvRepository.searchCvsByFts(query, null, poolSize);
-        return new FtsScoreBundle(normalizeFtsCvRows(rows), true);
+        // FTS is disabled for AI Document-to-Document matching to prevent redundancy and false negatives.
+        // We rely 100% on Semantic Search and Skill Matching instead.
+        return new FtsScoreBundle(Map.of(), false);
     }
 
     private String buildFtsQueryFromCv(Cv cv) {
@@ -798,7 +792,6 @@ public class JobMatchService {
 
     private Double combineHybridScores(Double semanticScore, Double ftsScore, Double skillScore, MatchingWeights weights) {
         double semanticWeight = Math.max(weights.semanticWeight(), 0.0);
-        double ftsWeight = Math.max(weights.ftsWeight(), 0.0);
         double skillWeight = Math.max(weights.skillsWeight(), 0.0);
 
         double sum = 0.0;
@@ -807,10 +800,7 @@ public class JobMatchService {
             sum += semanticWeight * semanticScore;
             total += semanticWeight;
         }
-        if (ftsScore != null) {
-            sum += ftsWeight * ftsScore;
-            total += ftsWeight;
-        }
+        // FTS is disabled for AI match, weight is naturally redistributed to Semantic and Skill
         if (skillScore != null) {
             sum += skillWeight * skillScore;
             total += skillWeight;

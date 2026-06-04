@@ -18,11 +18,19 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     @Query(value = """
         SELECT cast(j.id as varchar) AS jobId,
-               ts_rank(j.search_tsv, plainto_tsquery('simple', :query)) AS rank
+               ts_rank(j.search_tsv, websearch_to_tsquery('simple', :query)) AS rank
         FROM jobs j
-        WHERE j.search_tsv @@ plainto_tsquery('simple', :query)
-          AND (:status IS NULL OR j.status = :status)
-        ORDER BY rank DESC
+        WHERE (
+            j.search_tsv @@ websearch_to_tsquery('simple', :query)
+            OR j.title ILIKE concat('%', :query, '%')
+            OR EXISTS (
+                SELECT 1 FROM job_skills js
+                JOIN skills s ON s.id = js.skill_id
+                WHERE js.job_id = j.id AND s.name ILIKE concat('%', :query, '%')
+            )
+        )
+        AND (:status IS NULL OR j.status = :status)
+        ORDER BY rank DESC, j.created_at DESC
         LIMIT :limit
         """, nativeQuery = true)
     List<JobFtsView> searchJobsByFts(
