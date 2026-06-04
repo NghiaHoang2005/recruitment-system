@@ -19,28 +19,30 @@ public interface CvEmbeddingRepository extends JpaRepository<CvEmbedding, UUID> 
     List<CvEmbedding> findByType(EmbeddingType type);
 
     @Query(value = """
-        SELECT DISTINCT e.cv_id 
+        SELECT cast(e.cv_id as varchar) 
         FROM cv_embeddings e 
         WHERE e.type = :type 
-        ORDER BY e.vector <=> cast(:queryVector as vector) 
+        GROUP BY e.cv_id
+        ORDER BY MIN(e.vector <=> cast(:queryVector as vector)) 
         LIMIT :topK
         """, nativeQuery = true)
-    List<UUID> findTopMatchingCvIds(
+    List<String> findTopMatchingCvIds(
             @Param("queryVector") String queryVector,
             @Param("type") String type,
             @Param("topK") int topK
     );
 
     @Query(value = """
-        SELECT DISTINCT e.cv_id
+        SELECT cast(e.cv_id as varchar)
         FROM cv_embeddings e
         WHERE e.type = :type
           AND e.model = :model
           AND e.dimensions = :dimensions
-        ORDER BY e.vector <=> cast(:queryVector as vector)
+        GROUP BY e.cv_id
+        ORDER BY MIN(e.vector <=> cast(:queryVector as vector))
         LIMIT :topK
         """, nativeQuery = true)
-    List<UUID> findTopMatchingCvIdsByTypeAndModelAndDimensions(
+    List<String> findTopMatchingCvIdsByTypeAndModelAndDimensions(
             @Param("queryVector") String queryVector,
             @Param("type") String type,
             @Param("model") String model,
@@ -49,7 +51,7 @@ public interface CvEmbeddingRepository extends JpaRepository<CvEmbedding, UUID> 
     );
 
     @Query(value = """
-        SELECT e.cv_id AS cvId,
+        SELECT cast(e.cv_id as varchar) AS cvId,
                MIN(e.vector <=> cast(:queryVector as vector)) AS distance
         FROM cv_embeddings e
         JOIN cvs c ON c.id = e.cv_id
@@ -71,7 +73,7 @@ public interface CvEmbeddingRepository extends JpaRepository<CvEmbedding, UUID> 
     );
 
     interface CvEmbeddingScoreView {
-        UUID getCvId();
+        String getCvId();
         Double getDistance();
     }
 }

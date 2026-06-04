@@ -6,6 +6,7 @@ import com.recruitment.backend.domain.entities.Cv.Cv;
 import com.recruitment.backend.domain.entities.Cv.CvEmbedding;
 import com.recruitment.backend.domain.entities.Cv.EmbeddingType;
 import com.recruitment.backend.repositories.CvEmbeddingRepository;
+import com.recruitment.backend.services.CacheManagementService;
 import com.recruitment.backend.repositories.CvRepository;
 import com.recruitment.backend.services.ai.config.AiProperties;
 import com.recruitment.backend.services.ai.model.EmbeddingResult;
@@ -33,6 +34,7 @@ public class CvEmbeddingPipelineService {
     private final ObjectMapper objectMapper;
     private final PromptTemplateProvider promptTemplateProvider;
     private final EmbeddingBatchService embeddingBatchService;
+    private final CacheManagementService cacheManagementService;
 
     public CvEmbeddingPipelineService(
             CvRepository cvRepository,
@@ -41,7 +43,8 @@ public class CvEmbeddingPipelineService {
             AiRunLoggingService aiRunLoggingService,
             ObjectMapper objectMapper,
             PromptTemplateProvider promptTemplateProvider,
-            EmbeddingBatchService embeddingBatchService
+            EmbeddingBatchService embeddingBatchService,
+            CacheManagementService cacheManagementService
     ) {
         this.cvRepository = cvRepository;
         this.cvEmbeddingRepository = cvEmbeddingRepository;
@@ -50,6 +53,7 @@ public class CvEmbeddingPipelineService {
         this.objectMapper = objectMapper;
         this.promptTemplateProvider = promptTemplateProvider;
         this.embeddingBatchService = embeddingBatchService;
+        this.cacheManagementService = cacheManagementService;
     }
     @Transactional
     public void embedAndStore(
@@ -168,6 +172,7 @@ public class CvEmbeddingPipelineService {
             }
 
             log.info("✓ Stored {} embeddings for CV: {}", vectors.size(), cvId);
+            cacheManagementService.evictCacheForCv(cvId);
 
             // Log success metrics
             aiRunLoggingService.logSuccess(

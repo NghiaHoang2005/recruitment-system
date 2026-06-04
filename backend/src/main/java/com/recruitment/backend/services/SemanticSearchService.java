@@ -67,14 +67,14 @@ public class SemanticSearchService {
         }
 
         List<UUID> jobIds = rows.stream()
-                .map(JobEmbeddingRepository.JobEmbeddingScoreView::getJobId)
+                .map(row -> UUID.fromString(row.getJobId()))
                 .toList();
         Map<UUID, JobDTO> jobMap = jobRepository.findAllById(jobIds).stream()
                 .collect(Collectors.toMap(job -> job.getId(), jobMapper::toDto));
 
         return rows.stream()
                 .map(row -> {
-                    JobDTO job = jobMap.get(row.getJobId());
+                    JobDTO job = jobMap.get(UUID.fromString(row.getJobId()));
                     if (job == null) {
                         return null;
                     }
@@ -117,14 +117,14 @@ public class SemanticSearchService {
         }
 
         List<UUID> cvIds = rows.stream()
-                .map(CvEmbeddingRepository.CvEmbeddingScoreView::getCvId)
+                .map(row -> UUID.fromString(row.getCvId()))
                 .toList();
         Map<UUID, Cv> cvMap = cvRepository.findAllById(cvIds).stream()
                 .collect(Collectors.toMap(Cv::getId, cv -> cv));
 
         return rows.stream()
                 .map(row -> {
-                    Cv cv = cvMap.get(row.getCvId());
+                    Cv cv = cvMap.get(UUID.fromString(row.getCvId()));
                     if (cv == null) {
                         return null;
                     }
