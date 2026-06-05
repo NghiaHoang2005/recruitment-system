@@ -158,23 +158,27 @@ public class JobMatchService {
         Map<UUID, Double> skillScores = weightsOverride != null
                 ? computeSkillScoresForJobs(candidateUserId, candidateJobIds, weightsOverride)
                 : computeSkillScoresForJobs(candidateUserId, candidateJobIds);
-        List<Job> jobs = jobRepository.findAll().stream()
-                .filter(j -> candidateJobIds.contains(j.getId()))
-                .collect(Collectors.toList());
+        List<Job> jobs = jobRepository.findAllById(candidateJobIds);
         Map<UUID, Job> jobsMap = jobs.stream()
                 .collect(Collectors.toMap(Job::getId, j -> j));
 
         List<ScoredId> scored = new ArrayList<>();
         long startTime = System.currentTimeMillis();
+        Map<UUID, MatchingWeights> companyWeightsCache = new HashMap<>();
         for (UUID jobId : candidateJobIds) {
             Job job = jobsMap.get(jobId);
             if (job == null) continue;
 
-            MatchingWeights weights = weightsOverride != null
-                    ? weightsOverride
-                    : matchingWeightService.resolveWeightsForCompany(
-                    job.getCompany() != null ? job.getCompany().getId() : null
-            );
+            UUID companyId = job.getCompany() != null ? job.getCompany().getId() : null;
+            MatchingWeights weights;
+            if (weightsOverride != null) {
+                weights = weightsOverride;
+            } else if (companyWeightsCache.containsKey(companyId)) {
+                weights = companyWeightsCache.get(companyId);
+            } else {
+                weights = matchingWeightService.resolveWeightsForCompany(companyId);
+                companyWeightsCache.put(companyId, weights);
+            }
 
             Double semanticScore = semanticScores.scores().get(jobId);
             Double ftsScore = ftsBundle.enabled()
@@ -250,7 +254,7 @@ public class JobMatchService {
             return List.of();
         }
 
-        List<Cv> cvs = cvRepository.findByIdInAndCandidate_OpenToWorkTrue(new ArrayList<>(candidateCvIds));
+        List<Cv> cvs = cvRepository.findByIdInAndCandidate_OpenToWorkTrueAndIsDefaultTrue(new ArrayList<>(candidateCvIds));
         if (cvs.isEmpty()) {
             return List.of();
         }

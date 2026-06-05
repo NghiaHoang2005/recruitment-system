@@ -14,6 +14,8 @@ import java.util.UUID;
 @Repository
 public interface ApplicationRepository extends JpaRepository<Application, UUID> {
     boolean existsByJob_IdAndCandidate_UserIdAndStatusNot(UUID jobId, UUID candidateId, ApplicationStatus status);
+    boolean existsByCandidate_UserIdAndJob_Company_Id(UUID candidateId, UUID companyId);
+    boolean existsByCv_IdAndJob_Company_Id(UUID cvId, UUID companyId);
     List<Application> findByCandidate_UserIdOrderByAppliedAtDesc(UUID candidateId);
     Optional<Application> findByIdAndCandidate_UserId(UUID id, UUID candidateId);
     List<Application> findByJob_Company_IdOrderByAppliedAtDesc(UUID companyId);

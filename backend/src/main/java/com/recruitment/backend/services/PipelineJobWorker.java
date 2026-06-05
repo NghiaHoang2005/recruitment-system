@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @Slf4j
@@ -37,31 +39,38 @@ public class PipelineJobWorker {
         if (job == null) return;
 
         try {
-            List<Cv> cvs = cvRepository.findAll();
-            job.setTotalItems(cvs.size());
+            long totalCvs = cvRepository.count();
+            job.setTotalItems((int) totalCvs);
             pipelineJobRepository.save(job);
 
-            for (Cv cv : cvs) {
+            int pageSize = 100;
+            int totalPages = (int) Math.ceil((double) totalCvs / pageSize);
+
+            for (int i = 0; i < totalPages; i++) {
                 if (isJobCancelled(pipelineJobId)) {
                     log.info("Pipeline job {} cancelled", pipelineJobId);
                     return;
                 }
-                try {
-                    String rawText = cv.getRawText();
-                    if (rawText == null || rawText.isBlank()) {
+                
+                Page<Cv> page = cvRepository.findAll(PageRequest.of(i, pageSize));
+                for (Cv cv : page) {
+                    try {
+                        String rawText = cv.getRawText();
+                        if (rawText == null || rawText.isBlank()) {
+                            job.setFailedItems(job.getFailedItems() + 1);
+                        } else {
+                            String normalizedText = textNormalizationService.normalize(rawText);
+                            List<String> chunks = textNormalizationService.chunkByApproxTokens(normalizedText);
+                            String language = textNormalizationService.detectLanguage(rawText);
+                            cvEmbeddingPipelineService.embedAndStore(
+                                    cv.getId(), rawText, normalizedText, cv.getParsedData(),
+                                    language, chunks);
+                            job.setProcessedItems(job.getProcessedItems() + 1);
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to re-embed CV {}: {}", cv.getId(), e.getMessage());
                         job.setFailedItems(job.getFailedItems() + 1);
-                    } else {
-                        String normalizedText = textNormalizationService.normalize(rawText);
-                        List<String> chunks = textNormalizationService.chunkByApproxTokens(normalizedText);
-                        String language = textNormalizationService.detectLanguage(rawText);
-                        cvEmbeddingPipelineService.embedAndStore(
-                                cv.getId(), rawText, normalizedText, cv.getParsedData(),
-                                language, chunks);
-                        job.setProcessedItems(job.getProcessedItems() + 1);
                     }
-                } catch (Exception e) {
-                    log.error("Failed to re-embed CV {}: {}", cv.getId(), e.getMessage());
-                    job.setFailedItems(job.getFailedItems() + 1);
                 }
                 pipelineJobRepository.save(job);
             }
@@ -78,21 +87,28 @@ public class PipelineJobWorker {
         if (job == null) return;
 
         try {
-            List<Job> jobs = jobRepository.findAll();
-            job.setTotalItems(jobs.size());
+            long totalJobs = jobRepository.count();
+            job.setTotalItems((int) totalJobs);
             pipelineJobRepository.save(job);
 
-            for (Job jobEntity : jobs) {
+            int pageSize = 100;
+            int totalPages = (int) Math.ceil((double) totalJobs / pageSize);
+
+            for (int i = 0; i < totalPages; i++) {
                 if (isJobCancelled(pipelineJobId)) {
                     log.info("Pipeline job {} cancelled", pipelineJobId);
                     return;
                 }
-                try {
-                    jobEmbeddingPipelineService.embedAndStore(jobEntity);
-                    job.setProcessedItems(job.getProcessedItems() + 1);
-                } catch (Exception e) {
-                    log.error("Failed to re-embed Job {}: {}", jobEntity.getId(), e.getMessage());
-                    job.setFailedItems(job.getFailedItems() + 1);
+
+                Page<Job> page = jobRepository.findAll(PageRequest.of(i, pageSize));
+                for (Job jobEntity : page) {
+                    try {
+                        jobEmbeddingPipelineService.embedAndStore(jobEntity);
+                        job.setProcessedItems(job.getProcessedItems() + 1);
+                    } catch (Exception e) {
+                        log.error("Failed to re-embed Job {}: {}", jobEntity.getId(), e.getMessage());
+                        job.setFailedItems(job.getFailedItems() + 1);
+                    }
                 }
                 pipelineJobRepository.save(job);
             }
@@ -160,26 +176,37 @@ public class PipelineJobWorker {
             job.setTotalItems((int) (cvCount + jobCount));
             pipelineJobRepository.save(job);
 
-            List<Cv> cvs = cvRepository.findAll();
-            for (Cv cv : cvs) {
-                try {
-                    cvRepository.save(cv);
-                    job.setProcessedItems(job.getProcessedItems() + 1);
-                } catch (Exception e) {
-                    job.setFailedItems(job.getFailedItems() + 1);
+            int pageSize = 100;
+            int totalCvPages = (int) Math.ceil((double) cvCount / pageSize);
+
+            for (int i = 0; i < totalCvPages; i++) {
+                if (isJobCancelled(pipelineJobId)) return;
+                Page<Cv> page = cvRepository.findAll(PageRequest.of(i, pageSize));
+                for (Cv cv : page) {
+                    try {
+                        cvRepository.save(cv);
+                        job.setProcessedItems(job.getProcessedItems() + 1);
+                    } catch (Exception e) {
+                        job.setFailedItems(job.getFailedItems() + 1);
+                    }
                 }
+                pipelineJobRepository.save(job);
             }
 
-            List<Job> jobs = jobRepository.findAll();
-            for (Job jobEntity : jobs) {
-                try {
-                    jobRepository.save(jobEntity);
-                    job.setProcessedItems(job.getProcessedItems() + 1);
-                } catch (Exception e) {
-                    job.setFailedItems(job.getFailedItems() + 1);
+            int totalJobPages = (int) Math.ceil((double) jobCount / pageSize);
+            for (int i = 0; i < totalJobPages; i++) {
+                if (isJobCancelled(pipelineJobId)) return;
+                Page<Job> page = jobRepository.findAll(PageRequest.of(i, pageSize));
+                for (Job jobEntity : page) {
+                    try {
+                        jobRepository.save(jobEntity);
+                        job.setProcessedItems(job.getProcessedItems() + 1);
+                    } catch (Exception e) {
+                        job.setFailedItems(job.getFailedItems() + 1);
+                    }
                 }
+                pipelineJobRepository.save(job);
             }
-            pipelineJobRepository.save(job);
 
             completeJob(job);
         } catch (Exception e) {

@@ -18,8 +18,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import com.recruitment.backend.domain.entities.CompanyMember;
+import com.recruitment.backend.domain.enums.JoinStatus;
+import com.recruitment.backend.repositories.ApplicationRepository;
+import com.recruitment.backend.repositories.CompanyMemberRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +35,8 @@ public class ProfileService {
     private final SkillService skillService;
     private final CandidateSkillRepository candidateSkillRepository;
     private final UserRepository userRepository;
+    private final CompanyMemberRepository companyMemberRepository;
+    private final ApplicationRepository applicationRepository;
 
     @Transactional
     public CandidateProfileResponse getCandidateProfile(UUID userId) {
@@ -50,6 +58,29 @@ public class ProfileService {
                 .skills(skills)
                 .email(candidate.getUser().getEmail())
                 .build();
+    }
+
+    @Transactional
+    public CandidateProfileResponse getPublicCandidateProfile(UUID currentUserId, UUID candidateId) {
+        if (currentUserId.equals(candidateId)) {
+            return getCandidateProfile(candidateId);
+        }
+
+        Candidate candidate = candidateRepository.findById(candidateId)
+                .orElseThrow(() -> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
+
+        Optional<CompanyMember> memberOpt = companyMemberRepository.findFirstByUser_IdAndJoinStatus(currentUserId, JoinStatus.APPROVED);
+        if (memberOpt.isPresent()) {
+            UUID companyId = memberOpt.get().getCompany().getId();
+            if (Boolean.TRUE.equals(candidate.getOpenToWork())) {
+                return getCandidateProfile(candidateId);
+            }
+            if (applicationRepository.existsByCandidate_UserIdAndJob_Company_Id(candidateId, companyId)) {
+                return getCandidateProfile(candidateId);
+            }
+        }
+
+        throw new AppException(ErrorCode.UNAUTHORIZED);
     }
 
     @Transactional

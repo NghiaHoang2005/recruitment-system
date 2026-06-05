@@ -33,6 +33,12 @@ public class ProfileController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @GetMapping("/candidates/{candidateId}")
+    public ResponseEntity<ApiResponse<CandidateProfileResponse>> getPublicCandidateProfile(@PathVariable UUID candidateId) {
+        CandidateProfileResponse response = profileService.getPublicCandidateProfile(getCurrentUserId(), candidateId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @PostMapping("/candidate")
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> createCandidateProfile(
             @RequestBody RegisterCandidateProfileRequest request) {
