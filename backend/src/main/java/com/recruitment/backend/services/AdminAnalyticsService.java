@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,10 +30,17 @@ public class AdminAnalyticsService {
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
-    public AdminAnalyticsOverviewResponse getOverview() {
-        LocalDateTime thirtyDaysAgo = LocalDate.now().minusDays(29).atStartOfDay();
-        List<Application> recentApplications = applicationRepository.findByAppliedAtAfter(thirtyDaysAgo);
-        List<Job> recentJobs = jobRepository.findByCreatedAtAfter(thirtyDaysAgo);
+    public AdminAnalyticsOverviewResponse getOverview(LocalDate fromDate, LocalDate toDate) {
+        LocalDate today = LocalDate.now();
+        LocalDate rangeStart = fromDate == null ? today.minusDays(29) : fromDate;
+        LocalDate rangeEnd = toDate == null ? today : toDate;
+        if (rangeEnd.isBefore(rangeStart)) {
+            rangeEnd = rangeStart;
+        }
+        LocalDateTime fromDateTime = rangeStart.atStartOfDay();
+        LocalDateTime toDateTime = rangeEnd.atTime(LocalTime.MAX);
+        List<Application> recentApplications = applicationRepository.findByAppliedAtBetween(fromDateTime, toDateTime);
+        List<Job> recentJobs = jobRepository.findByCreatedAtBetween(fromDateTime, toDateTime);
 
         return AdminAnalyticsOverviewResponse.builder()
                 .overview(AdminAnalyticsOverviewResponse.Overview.builder()
@@ -40,8 +48,8 @@ public class AdminAnalyticsService {
                         .totalCompanies(companyRepository.count())
                         .totalJobs(jobRepository.count())
                         .totalApplications(applicationRepository.count())
-                        .jobsLast30Days(jobRepository.countByCreatedAtAfter(thirtyDaysAgo))
-                        .applicationsLast30Days(applicationRepository.countByAppliedAtAfter(thirtyDaysAgo))
+                        .jobsLast30Days(jobRepository.countByCreatedAtBetween(fromDateTime, toDateTime))
+                        .applicationsLast30Days(applicationRepository.countByAppliedAtBetween(fromDateTime, toDateTime))
                         .build())
                 .funnel(AdminAnalyticsOverviewResponse.Funnel.builder()
                         .applications(applicationRepository.count())
@@ -52,8 +60,8 @@ public class AdminAnalyticsService {
                         .rejected(applicationRepository.countByStatus(ApplicationStatus.REJECTED))
                         .build())
                 .aiMetrics(buildAiMetrics())
-                .applicationsByDay(buildApplicationSeries(recentApplications))
-                .jobsByDay(buildJobSeries(recentJobs))
+                .applicationsByDay(buildApplicationSeries(recentApplications, rangeStart, rangeEnd))
+                .jobsByDay(buildJobSeries(recentJobs, rangeStart, rangeEnd))
                 .build();
     }
 
@@ -72,8 +80,12 @@ public class AdminAnalyticsService {
                 .build();
     }
 
-    private List<AdminAnalyticsOverviewResponse.TimeSeriesPoint> buildApplicationSeries(List<Application> applications) {
-        Map<LocalDate, Long> counts = emptyLast30Days();
+    private List<AdminAnalyticsOverviewResponse.TimeSeriesPoint> buildApplicationSeries(
+            List<Application> applications,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        Map<LocalDate, Long> counts = emptyDateRange(startDate, endDate);
         applications.forEach(application -> {
             if (application.getAppliedAt() != null) {
                 LocalDate date = application.getAppliedAt().toLocalDate();
@@ -83,8 +95,12 @@ public class AdminAnalyticsService {
         return toSeries(counts);
     }
 
-    private List<AdminAnalyticsOverviewResponse.TimeSeriesPoint> buildJobSeries(List<Job> jobs) {
-        Map<LocalDate, Long> counts = emptyLast30Days();
+    private List<AdminAnalyticsOverviewResponse.TimeSeriesPoint> buildJobSeries(
+            List<Job> jobs,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        Map<LocalDate, Long> counts = emptyDateRange(startDate, endDate);
         jobs.forEach(job -> {
             if (job.getCreatedAt() != null) {
                 LocalDate date = job.getCreatedAt().toLocalDate();
@@ -94,11 +110,12 @@ public class AdminAnalyticsService {
         return toSeries(counts);
     }
 
-    private Map<LocalDate, Long> emptyLast30Days() {
+    private Map<LocalDate, Long> emptyDateRange(LocalDate startDate, LocalDate endDate) {
         Map<LocalDate, Long> counts = new LinkedHashMap<>();
-        LocalDate start = LocalDate.now().minusDays(29);
-        for (int i = 0; i < 30; i++) {
-            counts.put(start.plusDays(i), 0L);
+        LocalDate current = startDate;
+        while (!current.isAfter(endDate)) {
+            counts.put(current, 0L);
+            current = current.plusDays(1);
         }
         return counts;
     }

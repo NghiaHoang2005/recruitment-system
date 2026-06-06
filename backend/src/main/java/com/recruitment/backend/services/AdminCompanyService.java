@@ -12,11 +12,14 @@ import com.recruitment.backend.domain.enums.JoinStatus;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.mappers.AdminMapper;
+import com.recruitment.backend.notifications.domain.enums.NotificationType;
+import com.recruitment.backend.notifications.services.NotificationFacade;
 import com.recruitment.backend.repositories.CompanyMemberRepository;
 import com.recruitment.backend.repositories.CompanyRepository;
 import com.recruitment.backend.repositories.JobRepository;
 import com.recruitment.backend.repositories.RecruiterRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,12 +33,15 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminCompanyService {
     private final CompanyRepository companyRepository;
     private final CompanyMemberRepository companyMemberRepository;
     private final JobRepository jobRepository;
     private final RecruiterRepository recruiterRepository;
     private final AdminMapper adminMapper;
+    private final AdminAuditLogService adminAuditLogService;
+    private final NotificationFacade notificationFacade;
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
@@ -69,7 +75,7 @@ public class AdminCompanyService {
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminCompanyResponse verifyCompany(UUID companyId) {
+    public AdminCompanyResponse verifyCompany(UUID companyId, String reason) {
         Company company = findCompany(companyId);
         company.setStatus(CompanyStatus.ACTIVE);
 
@@ -79,23 +85,32 @@ public class AdminCompanyService {
             jobRepository.save(job);
         }
 
-        return toCompanyResponse(companyRepository.save(company));
+        Company savedCompany = companyRepository.save(company);
+        adminAuditLogService.record("COMPANY_VERIFIED", "COMPANY", companyId, reason);
+        notifyCompanyOwner(savedCompany, NotificationType.COMPANY_VERIFIED, reason, "company-verified:" + companyId);
+        return toCompanyResponse(savedCompany);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminCompanyResponse rejectCompany(UUID companyId) {
+    public AdminCompanyResponse rejectCompany(UUID companyId, String reason) {
         Company company = findCompany(companyId);
         company.setStatus(CompanyStatus.REJECTED);
-        return toCompanyResponse(companyRepository.save(company));
+        Company savedCompany = companyRepository.save(company);
+        adminAuditLogService.record("COMPANY_REJECTED", "COMPANY", companyId, reason);
+        notifyCompanyOwner(savedCompany, NotificationType.COMPANY_REJECTED, reason, "company-rejected:" + companyId);
+        return toCompanyResponse(savedCompany);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminCompanyResponse requestMoreInfo(UUID companyId) {
+    public AdminCompanyResponse requestMoreInfo(UUID companyId, String reason) {
         Company company = findCompany(companyId);
         company.setStatus(CompanyStatus.PENDING);
-        return toCompanyResponse(companyRepository.save(company));
+        Company savedCompany = companyRepository.save(company);
+        adminAuditLogService.record("COMPANY_MORE_INFO_REQUESTED", "COMPANY", companyId, reason);
+        notifyCompanyOwner(savedCompany, NotificationType.COMPANY_MORE_INFO_REQUESTED, reason, "company-more-info:" + companyId);
+        return toCompanyResponse(savedCompany);
     }
 
     private Company findCompany(UUID companyId) {
@@ -121,6 +136,18 @@ public class AdminCompanyService {
                 });
 
         return response;
+    }
+
+    private void notifyCompanyOwner(Company company, NotificationType notificationType, String reason, String idempotencyKey) {
+        String ownerEmail = company.getCreatedBy() != null ? company.getCreatedBy().getEmail() : null;
+        if (ownerEmail == null || ownerEmail.isBlank()) {
+            return;
+        }
+        try {
+            notificationFacade.notifyCompanyModeration(ownerEmail, company.getName(), notificationType, reason, idempotencyKey);
+        } catch (RuntimeException exception) {
+            log.warn("Could not enqueue company moderation notification for company {}", company.getId(), exception);
+        }
     }
 
     private String normalize(String value) {

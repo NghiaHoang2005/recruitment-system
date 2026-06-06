@@ -1,11 +1,13 @@
 package com.recruitment.backend.mappers;
 
 import com.recruitment.backend.domain.dtos.AdminCompanyResponse;
+import com.recruitment.backend.domain.dtos.AdminAuditLogResponse;
 import com.recruitment.backend.domain.dtos.AdminDashboardResponse;
 import com.recruitment.backend.domain.dtos.AdminJobResponse;
 import com.recruitment.backend.domain.dtos.AdminUserResponse;
 import com.recruitment.backend.domain.dtos.JobRequirementItemDTO;
 import com.recruitment.backend.domain.dtos.JobRequirementSectionDTO;
+import com.recruitment.backend.domain.entities.AdminAuditLog;
 import com.recruitment.backend.domain.entities.Application;
 import com.recruitment.backend.domain.entities.Company;
 import com.recruitment.backend.domain.entities.Job;
@@ -148,6 +150,24 @@ public class AdminMapper {
                 .closedAt(job.getClosedAt())
                 .applicationCount(applicationCount)
                 .requirementSections(mapSections(job.getRequirementSections()))
+                .build();
+    }
+
+    public AdminAuditLogResponse toAuditLogResponse(AdminAuditLog log) {
+        if (log == null) {
+            return null;
+        }
+        User adminUser = log.getAdminUser();
+
+        return AdminAuditLogResponse.builder()
+                .id(log.getId())
+                .adminUserId(adminUser != null ? adminUser.getId() : null)
+                .adminEmail(adminUser != null ? adminUser.getEmail() : null)
+                .action(log.getAction())
+                .targetType(log.getTargetType())
+                .targetId(log.getTargetId())
+                .reason(log.getReason())
+                .createdAt(log.getCreatedAt())
                 .build();
     }
 

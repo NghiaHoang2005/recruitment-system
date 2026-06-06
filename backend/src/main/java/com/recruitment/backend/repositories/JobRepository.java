@@ -58,7 +58,11 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     long countByCreatedAtAfter(LocalDateTime createdAt);
 
+    long countByCreatedAtBetween(LocalDateTime fromDate, LocalDateTime toDate);
+
     List<Job> findByCreatedAtAfter(LocalDateTime createdAt);
+
+    List<Job> findByCreatedAtBetween(LocalDateTime fromDate, LocalDateTime toDate);
 
     @Query("""
             select j from Job j

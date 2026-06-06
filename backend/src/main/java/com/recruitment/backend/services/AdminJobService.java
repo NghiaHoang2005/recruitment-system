@@ -8,9 +8,12 @@ import com.recruitment.backend.domain.enums.JobStatus;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.mappers.AdminMapper;
+import com.recruitment.backend.notifications.domain.enums.NotificationType;
+import com.recruitment.backend.notifications.services.NotificationFacade;
 import com.recruitment.backend.repositories.ApplicationRepository;
 import com.recruitment.backend.repositories.JobRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,10 +29,13 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminJobService {
     private final JobRepository jobRepository;
     private final ApplicationRepository applicationRepository;
     private final AdminMapper adminMapper;
+    private final AdminAuditLogService adminAuditLogService;
+    private final NotificationFacade notificationFacade;
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
@@ -73,48 +79,62 @@ public class AdminJobService {
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminJobResponse approveJob(UUID jobId) {
+    public AdminJobResponse approveJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
         job.setStatus(JobStatus.PUBLISHED);
         if (job.getPublishedAt() == null) {
             job.setPublishedAt(LocalDateTime.now());
         }
         job.setClosedAt(null);
-        return toJobResponse(jobRepository.save(job));
+        Job savedJob = jobRepository.save(job);
+        adminAuditLogService.record("JOB_APPROVED", "JOB", jobId, reason);
+        notifyRecruiter(savedJob, NotificationType.JOB_APPROVED, reason, "job-approved:" + jobId);
+        return toJobResponse(savedJob);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminJobResponse rejectJob(UUID jobId) {
+    public AdminJobResponse rejectJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
         job.setStatus(JobStatus.REJECTED);
         job.setClosedAt(null);
-        return toJobResponse(jobRepository.save(job));
+        Job savedJob = jobRepository.save(job);
+        adminAuditLogService.record("JOB_REJECTED", "JOB", jobId, reason);
+        notifyRecruiter(savedJob, NotificationType.JOB_REJECTED, reason, "job-rejected:" + jobId);
+        return toJobResponse(savedJob);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminJobResponse flagJob(UUID jobId) {
+    public AdminJobResponse flagJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
         job.setStatus(JobStatus.FLAGGED);
-        return toJobResponse(jobRepository.save(job));
+        Job savedJob = jobRepository.save(job);
+        adminAuditLogService.record("JOB_FLAGGED", "JOB", jobId, reason);
+        notifyRecruiter(savedJob, NotificationType.JOB_FLAGGED, reason, "job-flagged:" + jobId);
+        return toJobResponse(savedJob);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminJobResponse unflagJob(UUID jobId) {
+    public AdminJobResponse unflagJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
         job.setStatus(job.getPublishedAt() == null ? JobStatus.PENDING : JobStatus.PUBLISHED);
-        return toJobResponse(jobRepository.save(job));
+        Job savedJob = jobRepository.save(job);
+        adminAuditLogService.record("JOB_UNFLAGGED", "JOB", jobId, reason);
+        return toJobResponse(savedJob);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminJobResponse closeJob(UUID jobId) {
+    public AdminJobResponse closeJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
         job.setStatus(JobStatus.CLOSED);
         job.setClosedAt(LocalDateTime.now());
-        return toJobResponse(jobRepository.save(job));
+        Job savedJob = jobRepository.save(job);
+        adminAuditLogService.record("JOB_CLOSED", "JOB", jobId, reason);
+        notifyRecruiter(savedJob, NotificationType.JOB_CLOSED, reason, "job-closed:" + jobId);
+        return toJobResponse(savedJob);
     }
 
     private Job findJob(UUID jobId) {
@@ -124,6 +144,25 @@ public class AdminJobService {
 
     private AdminJobResponse toJobResponse(Job job) {
         return adminMapper.toJobResponse(job, applicationRepository.countByJob_Id(job.getId()));
+    }
+
+    private void notifyRecruiter(Job job, NotificationType notificationType, String reason, String idempotencyKey) {
+        String recruiterEmail = job.getRecruiter() != null ? job.getRecruiter().getEmail() : null;
+        if (recruiterEmail == null || recruiterEmail.isBlank()) {
+            return;
+        }
+        try {
+            notificationFacade.notifyJobModeration(
+                    recruiterEmail,
+                    job.getTitle(),
+                    job.getCompany() != null ? job.getCompany().getName() : null,
+                    notificationType,
+                    reason,
+                    idempotencyKey
+            );
+        } catch (RuntimeException exception) {
+            log.warn("Could not enqueue job moderation notification for job {}", job.getId(), exception);
+        }
     }
 
     private String normalize(String value) {

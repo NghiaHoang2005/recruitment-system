@@ -22,7 +22,9 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
     long countByJob_Id(UUID jobId);
     long countByJob_IdIn(Collection<UUID> jobIds);
     long countByAppliedAtAfter(LocalDateTime appliedAt);
+    long countByAppliedAtBetween(LocalDateTime fromDate, LocalDateTime toDate);
     long countByStatus(ApplicationStatus status);
     List<Application> findByAppliedAtAfter(LocalDateTime appliedAt);
+    List<Application> findByAppliedAtBetween(LocalDateTime fromDate, LocalDateTime toDate);
     List<Application> findTop5ByOrderByAppliedAtDesc();
 }

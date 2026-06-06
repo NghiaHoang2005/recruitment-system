@@ -8,6 +8,8 @@ import com.recruitment.backend.domain.enums.*;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.mappers.JobMapper;
+import com.recruitment.backend.notifications.domain.enums.NotificationType;
+import com.recruitment.backend.notifications.services.NotificationFacade;
 import com.recruitment.backend.repositories.*;
 import com.recruitment.backend.services.ai.model.JobStructuredExtractionPayload;
 import com.recruitment.backend.services.ai.pipeline.JobStructuredExtractionService;
@@ -40,6 +42,7 @@ public class JobService {
     private final JobEmbeddingPipelineService jobEmbeddingPipelineService;
     private final JobEmbeddingTextBuilder jobEmbeddingTextBuilder;
     private final JobMapper jobMapper;
+    private final NotificationFacade notificationFacade;
 
     @Transactional
     public JobDTO createJob(JobDTO dto, String userEmail) {
@@ -79,6 +82,9 @@ public class JobService {
         Job savedJob = jobRepository.save(job);
         extractAndStoreJobSkills(savedJob);
         embedJob(savedJob);
+        if (savedJob.getStatus() == JobStatus.PENDING) {
+            notifyAdminsJobReviewRequested(savedJob, recruiter);
+        }
         return jobMapper.toDto(savedJob);
     }
 
@@ -209,6 +215,22 @@ public class JobService {
         job.setParsedData(payload.json());
         jobSkillExtractionService.replaceJobSkills(job, payload.result());
         jobRepository.save(job);
+    }
+
+    private void notifyAdminsJobReviewRequested(Job job, User requester) {
+        userRepository.findByRole_NameAndEnabledTrue("ADMIN").forEach(admin -> {
+            try {
+                notificationFacade.notifyAdminReviewRequested(
+                        admin.getEmail(),
+                        job.getTitle(),
+                        requester.getEmail(),
+                        NotificationType.ADMIN_JOB_REVIEW_REQUESTED,
+                        "admin-job-review:" + job.getId() + ":" + admin.getId()
+                );
+            } catch (RuntimeException exception) {
+                log.warn("Could not enqueue job review notification for admin {}", admin.getId(), exception);
+            }
+        });
     }
 
 }

@@ -20,14 +20,18 @@ import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
 import com.recruitment.backend.mappers.CompanyMapper;
 import com.recruitment.backend.mappers.CompanyMemberMapper;
+import com.recruitment.backend.notifications.domain.enums.NotificationType;
+import com.recruitment.backend.notifications.services.NotificationFacade;
 import com.recruitment.backend.repositories.CompanyMemberRepository;
 import com.recruitment.backend.repositories.CompanyRepository;
 import com.recruitment.backend.repositories.CompanyInviteRepository;
 import com.recruitment.backend.repositories.JobRepository;
 import com.recruitment.backend.repositories.RecruiterRepository;
+import com.recruitment.backend.repositories.UserRepository;
 import com.recruitment.backend.utils.SecurityUtil;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +43,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CompanyService {
     private final CompanyRepository companyRepository;
     private final CompanyMapper companyMapper;
@@ -48,6 +53,8 @@ public class CompanyService {
     private final CompanyMemberMapper companyMemberMapper;
     private final JobRepository jobRepository;
     private final CompanyInviteRepository companyInviteRepository;
+    private final UserRepository userRepository;
+    private final NotificationFacade notificationFacade;
 
     @Transactional
     @PreAuthorize("hasRole('RECRUITER')")
@@ -79,6 +86,7 @@ public class CompanyService {
                 .build();
 
         companyMemberRepository.save(companyMember);
+        notifyAdminsCompanyReviewRequested(company, user);
 
         return companyMapper.toCompanyResponse(company);
     }
@@ -323,6 +331,22 @@ public class CompanyService {
                 .sentAt(invite.getSentAt())
                 .invitedBy(invite.getInvitedBy().getId().toString())
                 .build();
+    }
+
+    private void notifyAdminsCompanyReviewRequested(Company company, User requester) {
+        userRepository.findByRole_NameAndEnabledTrue("ADMIN").forEach(admin -> {
+            try {
+                notificationFacade.notifyAdminReviewRequested(
+                        admin.getEmail(),
+                        company.getName(),
+                        requester.getEmail(),
+                        NotificationType.ADMIN_COMPANY_REVIEW_REQUESTED,
+                        "admin-company-review:" + company.getId() + ":" + admin.getId()
+                );
+            } catch (RuntimeException exception) {
+                log.warn("Could not enqueue company review notification for admin {}", admin.getId(), exception);
+            }
+        });
     }
 
     private CompanyMemberResponse toCompanyMemberResponse(CompanyMember companyMember) {

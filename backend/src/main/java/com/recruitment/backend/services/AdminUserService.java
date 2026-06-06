@@ -23,6 +23,7 @@ import java.util.UUID;
 public class AdminUserService {
     private final UserRepository userRepository;
     private final AdminMapper adminMapper;
+    private final AdminAuditLogService adminAuditLogService;
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
@@ -62,18 +63,22 @@ public class AdminUserService {
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminUserResponse disableUser(UUID userId) {
+    public AdminUserResponse disableUser(UUID userId, String reason) {
         User user = findUser(userId);
         user.setEnabled(false);
-        return adminMapper.toUserResponse(userRepository.save(user));
+        User savedUser = userRepository.save(user);
+        adminAuditLogService.record("USER_DISABLED", "USER", userId, reason);
+        return adminMapper.toUserResponse(savedUser);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public AdminUserResponse enableUser(UUID userId) {
+    public AdminUserResponse enableUser(UUID userId, String reason) {
         User user = findUser(userId);
         user.setEnabled(true);
-        return adminMapper.toUserResponse(userRepository.save(user));
+        User savedUser = userRepository.save(user);
+        adminAuditLogService.record("USER_ENABLED", "USER", userId, reason);
+        return adminMapper.toUserResponse(savedUser);
     }
 
     private User findUser(UUID userId) {

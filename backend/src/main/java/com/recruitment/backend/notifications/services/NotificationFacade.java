@@ -67,6 +67,44 @@ public class NotificationFacade {
         ), 20, "user-registered:" + UUID.nameUUIDFromBytes((email + ":" + accountType).getBytes()));
     }
 
+    @Transactional
+    public void notifyCompanyModeration(String email,
+                                        String companyName,
+                                        NotificationType notificationType,
+                                        String reason,
+                                        String idempotencyKey) {
+        appendOutbox(notificationType, email, Map.of(
+                "companyName", companyName,
+                "reason", reason == null ? "" : reason
+        ), 40, idempotencyKey);
+    }
+
+    @Transactional
+    public void notifyJobModeration(String email,
+                                    String jobTitle,
+                                    String companyName,
+                                    NotificationType notificationType,
+                                    String reason,
+                                    String idempotencyKey) {
+        appendOutbox(notificationType, email, Map.of(
+                "jobTitle", jobTitle,
+                "companyName", companyName == null ? "" : companyName,
+                "reason", reason == null ? "" : reason
+        ), 40, idempotencyKey);
+    }
+
+    @Transactional
+    public void notifyAdminReviewRequested(String email,
+                                           String targetName,
+                                           String requesterEmail,
+                                           NotificationType notificationType,
+                                           String idempotencyKey) {
+        appendOutbox(notificationType, email, Map.of(
+                "targetName", targetName,
+                "requesterEmail", requesterEmail == null ? "" : requesterEmail
+        ), 45, idempotencyKey);
+    }
+
     private void appendOutbox(NotificationType notificationType,
                               String recipientEmail,
                               Map<String, Object> payload,
