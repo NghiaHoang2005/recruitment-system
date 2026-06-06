@@ -22,7 +22,6 @@ public class PipelineJobService {
     private final PipelineJobRepository pipelineJobRepository;
     private final PipelineJobWorker pipelineJobWorker;
 
-    @Transactional
     public PipelineJob startReEmbedAllCvs() {
         checkNoRunningJob(PipelineJobType.RE_EMBED_ALL_CVS);
         PipelineJob job = createJob(PipelineJobType.RE_EMBED_ALL_CVS, null);
@@ -30,7 +29,6 @@ public class PipelineJobService {
         return job;
     }
 
-    @Transactional
     public PipelineJob startReEmbedAllJobs() {
         checkNoRunningJob(PipelineJobType.RE_EMBED_ALL_JOBS);
         PipelineJob job = createJob(PipelineJobType.RE_EMBED_ALL_JOBS, null);
@@ -38,21 +36,18 @@ public class PipelineJobService {
         return job;
     }
 
-    @Transactional
     public PipelineJob startReEmbedSingleCv(UUID cvId) {
         PipelineJob job = createJob(PipelineJobType.RE_EMBED_SINGLE_CV, cvId);
         pipelineJobWorker.executeReEmbedSingleCv(job.getId(), cvId);
         return job;
     }
 
-    @Transactional
     public PipelineJob startReEmbedSingleJob(UUID jobId) {
         PipelineJob job = createJob(PipelineJobType.RE_EMBED_SINGLE_JOB, jobId);
         pipelineJobWorker.executeReEmbedSingleJob(job.getId(), jobId);
         return job;
     }
 
-    @Transactional
     public PipelineJob startRebuildFtsIndex() {
         checkNoRunningJob(PipelineJobType.REBUILD_FTS_INDEX);
         PipelineJob job = createJob(PipelineJobType.REBUILD_FTS_INDEX, null);

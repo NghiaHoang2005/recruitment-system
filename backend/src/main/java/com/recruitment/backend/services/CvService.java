@@ -24,6 +24,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+import com.recruitment.backend.domain.entities.CompanyMember;
+import com.recruitment.backend.domain.enums.JoinStatus;
+import com.recruitment.backend.repositories.ApplicationRepository;
+import com.recruitment.backend.repositories.CompanyMemberRepository;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -33,6 +38,8 @@ public class CvService {
     private final CvRepository cvRepository;
     private final CandidateRepository candidateRepository;
     private final SupabaseStorageService storageService;
+    private final CompanyMemberRepository companyMemberRepository;
+    private final ApplicationRepository applicationRepository;
 
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "application/pdf",
@@ -93,13 +100,27 @@ public class CvService {
        }
     }
 
+    private void validateCvAccess(Cv cv, UUID currentUserId) {
+        if (cv.getCandidate().getUserId().equals(currentUserId) || cv.getCandidate().getOpenToWork()) {
+            return;
+        }
+
+        Optional<CompanyMember> memberOpt = companyMemberRepository.findFirstByUser_IdAndJoinStatus(currentUserId, JoinStatus.APPROVED);
+        if (memberOpt.isPresent()) {
+            UUID companyId = memberOpt.get().getCompany().getId();
+            if (applicationRepository.existsByCv_IdAndJob_Company_Id(cv.getId(), companyId)) {
+                return;
+            }
+        }
+
+        throw new AppException(ErrorCode.UNAUTHORIZED);
+    }
+
     public Map<String, Object> getExtractedData(UUID currentUserId, UUID cvId) {
         Cv cv = cvRepository.findById(cvId)
                 .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
 
-        if (!cv.getCandidate().getUserId().equals(currentUserId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
+        validateCvAccess(cv, currentUserId);
 
         if (CvStatus.PENDING.equals(cv.getAiStatus())) {
             throw new AppException(ErrorCode.AI_PROCESSING);
@@ -118,9 +139,7 @@ public class CvService {
         Cv cv = cvRepository.findById(cvId)
                 .orElseThrow(() -> new AppException(ErrorCode.CV_NOT_FOUND));
 
-        if (!cv.getCandidate().getUserId().equals(currentUserId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
+        validateCvAccess(cv, currentUserId);
 
         try {
             String signedUrl = storageService.getPresignedUrl(cv.getFileUrl());
@@ -128,7 +147,7 @@ public class CvService {
             return signedUrl;
 
         } catch (Exception e) {
-            log.error("Lỗi khi tạo Presigned URL từ Cloudinary cho file: {}", cv.getFileUrl(), e);
+            log.error("Lỗi khi tạo Presigned URL cho file: {}", cv.getFileUrl(), e);
             throw new AppException(ErrorCode.PRESIGNED_URL_FAILED);
         }
     }

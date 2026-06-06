@@ -146,6 +146,7 @@ public class SupabaseStorageService {
         try {
             return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (Exception e) {
+            log.error("Lỗi kết nối HTTP Client tới Supabase: ", e);
             throw new AppException(ErrorCode.CV_PROCESSING_FAILED);
         }
     }

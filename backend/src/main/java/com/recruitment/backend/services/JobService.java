@@ -11,9 +11,6 @@ import com.recruitment.backend.mappers.JobMapper;
 import com.recruitment.backend.notifications.domain.enums.NotificationType;
 import com.recruitment.backend.notifications.services.NotificationFacade;
 import com.recruitment.backend.repositories.*;
-import com.recruitment.backend.services.ai.model.JobStructuredExtractionPayload;
-import com.recruitment.backend.services.ai.pipeline.JobStructuredExtractionService;
-import com.recruitment.backend.services.ai.pipeline.JobEmbeddingPipelineService;
 import com.recruitment.backend.services.ai.pipeline.JobEmbeddingTextBuilder;
 import com.recruitment.backend.services.ai.pipeline.TextNormalizationService;
 import jakarta.transaction.Transactional;
@@ -37,10 +34,8 @@ public class JobService {
     private final CompanyMemberRepository companyMemberRepository;
     private final CompanyRepository companyRepository;
     private final TextNormalizationService textNormalizationService;
-    private final JobStructuredExtractionService jobStructuredExtractionService;
-    private final JobSkillExtractionService jobSkillExtractionService;
-    private final JobEmbeddingPipelineService jobEmbeddingPipelineService;
     private final JobEmbeddingTextBuilder jobEmbeddingTextBuilder;
+    private final JobAsyncProcessingService jobAsyncProcessingService;
     private final JobMapper jobMapper;
     private final NotificationFacade notificationFacade;
 
@@ -80,8 +75,7 @@ public class JobService {
         updateNormalizedText(job);
 
         Job savedJob = jobRepository.save(job);
-        extractAndStoreJobSkills(savedJob);
-        embedJob(savedJob);
+        jobAsyncProcessingService.processJobAsync(savedJob.getId());
         if (savedJob.getStatus() == JobStatus.PENDING) {
             notifyAdminsJobReviewRequested(savedJob, recruiter);
         }
@@ -118,8 +112,7 @@ public class JobService {
         updateNormalizedText(job);
 
         Job savedJob = jobRepository.save(job);
-        extractAndStoreJobSkills(savedJob);
-        embedJob(savedJob);
+        jobAsyncProcessingService.processJobAsync(savedJob.getId());
         return jobMapper.toDto(savedJob);
     }
 
@@ -191,30 +184,10 @@ public class JobService {
         }
     }
 
-    private void embedJob(Job job) {
-        try {
-            jobEmbeddingPipelineService.embedAndStore(job);
-        } catch (Exception ex) {
-            log.warn("Could not generate job embeddings for job {}: {}", job.getId(), ex.getMessage());
-        }
-    }
-
     private void updateNormalizedText(Job job) {
         String combinedText = jobEmbeddingTextBuilder.buildEmbeddingText(job);
         String normalized = textNormalizationService.normalize(combinedText);
         job.setNormalizedText(normalized.isBlank() ? null : normalized);
-    }
-
-    private void extractAndStoreJobSkills(Job job) {
-        String language = textNormalizationService.detectLanguage(
-                job.getNormalizedText() == null ? job.getDescription() : job.getNormalizedText()
-        );
-        String requirementsText = jobEmbeddingTextBuilder.buildRequirementsTextForExtraction(job);
-        JobStructuredExtractionPayload payload =
-                jobStructuredExtractionService.extract(job, language, requirementsText);
-        job.setParsedData(payload.json());
-        jobSkillExtractionService.replaceJobSkills(job, payload.result());
-        jobRepository.save(job);
     }
 
     private void notifyAdminsJobReviewRequested(Job job, User requester) {

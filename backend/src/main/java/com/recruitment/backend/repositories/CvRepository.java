@@ -21,7 +21,7 @@ public interface CvRepository extends JpaRepository<Cv, UUID> {
 
     Optional<Cv> findTopByCandidateUserIdOrderByUploadedAtDesc(UUID candidateId);
 
-    List<Cv> findByIdInAndCandidate_OpenToWorkTrue(List<UUID> cvIds);
+    List<Cv> findByIdInAndCandidate_OpenToWorkTrueAndIsDefaultTrue(List<UUID> cvIds);
 
     @Modifying
     @Query("""
