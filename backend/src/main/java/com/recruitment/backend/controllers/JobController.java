@@ -46,13 +46,21 @@ public class JobController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<JobDTO>>> getAllJobs() {
-        return ResponseEntity.ok(ApiResponse.success(jobService.getAllJobs()));
+    public ResponseEntity<ApiResponse<List<JobDTO>>> getAllJobs(Authentication authentication) {
+        List<String> authorities = authentication.getAuthorities()
+                .stream()
+                .map(Object::toString)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(jobService.getJobsForUser(authentication.getName(), authorities)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<JobDTO>> getJobById(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success(jobService.getJobById(id)));
+    public ResponseEntity<ApiResponse<JobDTO>> getJobById(@PathVariable UUID id, Authentication authentication) {
+        List<String> authorities = authentication.getAuthorities()
+                .stream()
+                .map(Object::toString)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(jobService.getJobById(id, authentication.getName(), authorities)));
     }
 
     @GetMapping("/{id}/match")

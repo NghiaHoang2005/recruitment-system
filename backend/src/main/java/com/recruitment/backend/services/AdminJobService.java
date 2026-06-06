@@ -36,6 +36,7 @@ public class AdminJobService {
     private final AdminMapper adminMapper;
     private final AdminAuditLogService adminAuditLogService;
     private final NotificationFacade notificationFacade;
+    private final AdminSettingsService adminSettingsService;
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
@@ -88,7 +89,9 @@ public class AdminJobService {
         job.setClosedAt(null);
         Job savedJob = jobRepository.save(job);
         adminAuditLogService.record("JOB_APPROVED", "JOB", jobId, reason);
-        notifyRecruiter(savedJob, NotificationType.JOB_APPROVED, reason, "job-approved:" + jobId);
+        if (adminSettingsService.notifyRecruitersForModeration()) {
+            notifyRecruiter(savedJob, NotificationType.JOB_APPROVED, reason, "job-approved:" + jobId);
+        }
         return toJobResponse(savedJob);
     }
 
@@ -100,7 +103,9 @@ public class AdminJobService {
         job.setClosedAt(null);
         Job savedJob = jobRepository.save(job);
         adminAuditLogService.record("JOB_REJECTED", "JOB", jobId, reason);
-        notifyRecruiter(savedJob, NotificationType.JOB_REJECTED, reason, "job-rejected:" + jobId);
+        if (adminSettingsService.notifyRecruitersForModeration()) {
+            notifyRecruiter(savedJob, NotificationType.JOB_REJECTED, reason, "job-rejected:" + jobId);
+        }
         return toJobResponse(savedJob);
     }
 
@@ -111,7 +116,9 @@ public class AdminJobService {
         job.setStatus(JobStatus.FLAGGED);
         Job savedJob = jobRepository.save(job);
         adminAuditLogService.record("JOB_FLAGGED", "JOB", jobId, reason);
-        notifyRecruiter(savedJob, NotificationType.JOB_FLAGGED, reason, "job-flagged:" + jobId);
+        if (adminSettingsService.notifyRecruitersForModeration()) {
+            notifyRecruiter(savedJob, NotificationType.JOB_FLAGGED, reason, "job-flagged:" + jobId);
+        }
         return toJobResponse(savedJob);
     }
 
@@ -133,7 +140,9 @@ public class AdminJobService {
         job.setClosedAt(LocalDateTime.now());
         Job savedJob = jobRepository.save(job);
         adminAuditLogService.record("JOB_CLOSED", "JOB", jobId, reason);
-        notifyRecruiter(savedJob, NotificationType.JOB_CLOSED, reason, "job-closed:" + jobId);
+        if (adminSettingsService.notifyRecruitersForModeration()) {
+            notifyRecruiter(savedJob, NotificationType.JOB_CLOSED, reason, "job-closed:" + jobId);
+        }
         return toJobResponse(savedJob);
     }
 

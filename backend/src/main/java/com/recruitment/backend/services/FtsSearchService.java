@@ -34,7 +34,7 @@ public class FtsSearchService {
             return List.of();
         }
         int safeLimit = clampLimit(limit);
-        String statusValue = status == null ? null : status.name();
+        String statusValue = status == null ? JobStatus.PUBLISHED.name() : status.name();
 
         List<JobRepository.JobFtsView> rows = jobRepository.searchJobsByFts(query, statusValue, safeLimit);
         if (rows.isEmpty()) {

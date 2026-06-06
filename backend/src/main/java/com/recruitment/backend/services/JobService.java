@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -38,6 +39,7 @@ public class JobService {
     private final JobAsyncProcessingService jobAsyncProcessingService;
     private final JobMapper jobMapper;
     private final NotificationFacade notificationFacade;
+    private final AdminSettingsService adminSettingsService;
 
     @Transactional
     public JobDTO createJob(JobDTO dto, String userEmail) {
@@ -49,7 +51,11 @@ public class JobService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        JobStatus status = company.getStatus() == CompanyStatus.ACTIVE ? JobStatus.PUBLISHED : JobStatus.PENDING;
+        JobStatus status = company.getStatus() == CompanyStatus.ACTIVE
+                && adminSettingsService.autoApproveJobsFromVerifiedCompanies()
+                && !adminSettingsService.requireAdminApprovalForAllJobs()
+                ? JobStatus.PUBLISHED
+                : JobStatus.PENDING;
 
         Job job = Job.builder()
                 .title(dto.getTitle())
@@ -76,7 +82,7 @@ public class JobService {
 
         Job savedJob = jobRepository.save(job);
         jobAsyncProcessingService.processJobAsync(savedJob.getId());
-        if (savedJob.getStatus() == JobStatus.PENDING) {
+        if (savedJob.getStatus() == JobStatus.PENDING && adminSettingsService.notifyAdminsForJobReview()) {
             notifyAdminsJobReviewRequested(savedJob, recruiter);
         }
         return jobMapper.toDto(savedJob);
@@ -116,13 +122,32 @@ public class JobService {
         return jobMapper.toDto(savedJob);
     }
 
-    public List<JobDTO> getAllJobs() {
-        return jobRepository.findAll().stream().map(jobMapper::toDto).collect(Collectors.toList());
+    public List<JobDTO> getJobsForUser(String userEmail, Collection<String> authorities) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        if (hasAuthority(authorities, "ROLE_ADMIN") || hasAuthority(authorities, "ADMIN")) {
+            return jobRepository.findAll().stream().map(jobMapper::toDto).collect(Collectors.toList());
+        }
+        if (hasAuthority(authorities, "ROLE_RECRUITER") || hasAuthority(authorities, "RECRUITER")) {
+            return companyMemberRepository.findFirstByUser_IdAndJoinStatus(user.getId(), JoinStatus.APPROVED)
+                    .map(membership -> jobRepository.findByCompany_IdOrderByCreatedAtDesc(membership.getCompany().getId()))
+                    .orElseGet(() -> jobRepository.findByRecruiterIdOrderByCreatedAtDesc(user.getId()))
+                    .stream()
+                    .map(jobMapper::toDto)
+                    .collect(Collectors.toList());
+        }
+        return jobRepository.findByStatusOrderByCreatedAtDesc(JobStatus.PUBLISHED)
+                .stream()
+                .map(jobMapper::toDto)
+                .collect(Collectors.toList());
     }
 
-    public JobDTO getJobById(UUID id) {
+    public JobDTO getJobById(UUID id, String userEmail, Collection<String> authorities) {
         Job job = jobRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
+        if (job.getStatus() != JobStatus.PUBLISHED && !canViewPrivateJob(job, userEmail, authorities)) {
+            throw new AppException(ErrorCode.JOB_NOT_FOUND);
+        }
         return jobMapper.toDto(job);
     }
 
@@ -131,8 +156,33 @@ public class JobService {
             return List.of();
         }
         return jobRepository.findAllById(ids).stream()
+                .filter(job -> job.getStatus() == JobStatus.PUBLISHED)
                 .map(jobMapper::toDto)
                 .collect(Collectors.toList());
+    }
+
+    private boolean canViewPrivateJob(Job job, String userEmail, Collection<String> authorities) {
+        if (hasAuthority(authorities, "ROLE_ADMIN") || hasAuthority(authorities, "ADMIN")) {
+            return true;
+        }
+        if (!hasAuthority(authorities, "ROLE_RECRUITER") && !hasAuthority(authorities, "RECRUITER")) {
+            return false;
+        }
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        if (job.getRecruiter() != null && user.getId().equals(job.getRecruiter().getId())) {
+            return true;
+        }
+        return job.getCompany() != null
+                && companyMemberRepository.existsByCompany_IdAndUser_IdAndJoinStatus(
+                job.getCompany().getId(),
+                user.getId(),
+                JoinStatus.APPROVED
+        );
+    }
+
+    private boolean hasAuthority(Collection<String> authorities, String authority) {
+        return authorities != null && authorities.contains(authority);
     }
 
     private Company getApprovedCompanyForRecruiter(User recruiter) {

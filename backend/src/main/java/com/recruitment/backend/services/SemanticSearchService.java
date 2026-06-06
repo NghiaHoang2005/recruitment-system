@@ -45,7 +45,7 @@ public class SemanticSearchService {
 
         int safeLimit = clampLimit(limit);
         JobEmbeddingType safeType = type == null ? JobEmbeddingType.FULL_JOB : type;
-        String statusValue = status == null ? null : status.name();
+        String statusValue = status == null ? JobStatus.PUBLISHED.name() : status.name();
 
         EmbeddingResult embedding = embeddingBatchService.embedAll(List.of(query));
         if (embedding.getVectors() == null || embedding.getVectors().isEmpty()) {

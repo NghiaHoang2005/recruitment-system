@@ -42,6 +42,7 @@ public class AdminCompanyService {
     private final AdminMapper adminMapper;
     private final AdminAuditLogService adminAuditLogService;
     private final NotificationFacade notificationFacade;
+    private final AdminSettingsService adminSettingsService;
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
@@ -87,7 +88,9 @@ public class AdminCompanyService {
 
         Company savedCompany = companyRepository.save(company);
         adminAuditLogService.record("COMPANY_VERIFIED", "COMPANY", companyId, reason);
-        notifyCompanyOwner(savedCompany, NotificationType.COMPANY_VERIFIED, reason, "company-verified:" + companyId);
+        if (adminSettingsService.notifyCompanyOwnersForModeration()) {
+            notifyCompanyOwner(savedCompany, NotificationType.COMPANY_VERIFIED, reason, "company-verified:" + companyId);
+        }
         return toCompanyResponse(savedCompany);
     }
 
@@ -98,7 +101,9 @@ public class AdminCompanyService {
         company.setStatus(CompanyStatus.REJECTED);
         Company savedCompany = companyRepository.save(company);
         adminAuditLogService.record("COMPANY_REJECTED", "COMPANY", companyId, reason);
-        notifyCompanyOwner(savedCompany, NotificationType.COMPANY_REJECTED, reason, "company-rejected:" + companyId);
+        if (adminSettingsService.notifyCompanyOwnersForModeration()) {
+            notifyCompanyOwner(savedCompany, NotificationType.COMPANY_REJECTED, reason, "company-rejected:" + companyId);
+        }
         return toCompanyResponse(savedCompany);
     }
 
@@ -109,7 +114,9 @@ public class AdminCompanyService {
         company.setStatus(CompanyStatus.PENDING);
         Company savedCompany = companyRepository.save(company);
         adminAuditLogService.record("COMPANY_MORE_INFO_REQUESTED", "COMPANY", companyId, reason);
-        notifyCompanyOwner(savedCompany, NotificationType.COMPANY_MORE_INFO_REQUESTED, reason, "company-more-info:" + companyId);
+        if (adminSettingsService.notifyCompanyOwnersForModeration()) {
+            notifyCompanyOwner(savedCompany, NotificationType.COMPANY_MORE_INFO_REQUESTED, reason, "company-more-info:" + companyId);
+        }
         return toCompanyResponse(savedCompany);
     }
 

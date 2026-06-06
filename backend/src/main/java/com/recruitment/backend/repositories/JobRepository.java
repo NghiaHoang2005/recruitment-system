@@ -18,6 +18,9 @@ import java.util.UUID;
 @Repository
 public interface JobRepository extends JpaRepository<Job, UUID> {
     List<Job> findByRecruiterId(UUID recruiterId);
+    List<Job> findByRecruiterIdOrderByCreatedAtDesc(UUID recruiterId);
+    List<Job> findByCompany_IdOrderByCreatedAtDesc(UUID companyId);
+    List<Job> findByStatusOrderByCreatedAtDesc(JobStatus status);
     long countByCompany_IdAndStatusIn(UUID companyId, Collection<JobStatus> statuses);
 
     @Query(value = """

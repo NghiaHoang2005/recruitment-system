@@ -8,6 +8,7 @@ import com.recruitment.backend.services.AdminAuditLogService;
 import com.recruitment.backend.services.AdminCompanyService;
 import com.recruitment.backend.services.AdminDashboardService;
 import com.recruitment.backend.services.AdminJobService;
+import com.recruitment.backend.services.AdminSettingsService;
 import com.recruitment.backend.services.AdminUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -31,6 +32,7 @@ public class AdminController {
     private final AdminJobService adminJobService;
     private final AdminAnalyticsService adminAnalyticsService;
     private final AdminAuditLogService adminAuditLogService;
+    private final AdminSettingsService adminSettingsService;
 
     @GetMapping("/dashboard")
     public ApiResponse<AdminDashboardResponse> getDashboard() {
@@ -195,6 +197,16 @@ public class AdminController {
                 fromDate,
                 toDate
         ));
+    }
+
+    @GetMapping("/settings")
+    public ApiResponse<AdminSettingsResponse> getSettings() {
+        return ApiResponse.success(adminSettingsService.getSettings());
+    }
+
+    @PatchMapping("/settings")
+    public ApiResponse<AdminSettingsResponse> updateSettings(@RequestBody AdminSettingsRequest request) {
+        return ApiResponse.success(adminSettingsService.updateSettings(request));
     }
 
     private String reasonOf(AdminModerationRequest request) {

@@ -55,6 +55,7 @@ public class CompanyService {
     private final CompanyInviteRepository companyInviteRepository;
     private final UserRepository userRepository;
     private final NotificationFacade notificationFacade;
+    private final AdminSettingsService adminSettingsService;
 
     @Transactional
     @PreAuthorize("hasRole('RECRUITER')")
@@ -69,7 +70,7 @@ public class CompanyService {
 
         Company company = companyMapper.toCompany(companyRequest);
 
-        company.setStatus(CompanyStatus.PENDING);
+        company.setStatus(adminSettingsService.autoApproveCompanies() ? CompanyStatus.ACTIVE : CompanyStatus.PENDING);
 
         company.setCreatedBy(user);
 
@@ -86,7 +87,9 @@ public class CompanyService {
                 .build();
 
         companyMemberRepository.save(companyMember);
-        notifyAdminsCompanyReviewRequested(company, user);
+        if (company.getStatus() == CompanyStatus.PENDING && adminSettingsService.notifyAdminsForCompanyReview()) {
+            notifyAdminsCompanyReviewRequested(company, user);
+        }
 
         return companyMapper.toCompanyResponse(company);
     }
