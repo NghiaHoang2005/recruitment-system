@@ -24,11 +24,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -57,7 +63,7 @@ public class AdminCompanyService {
                 Math.min(Math.max(size, 1), 100),
                 Sort.by(Sort.Direction.ASC, "name")
         );
-        Page<Company> companies = companyRepository.searchAdminCompanies(normalize(keyword), status, pageable);
+        Page<Company> companies = companyRepository.findAll(buildCompanySpecification(normalize(keyword), status), pageable);
 
         return AdminPageResponse.<AdminCompanyResponse>builder()
                 .items(companies.stream().map(this::toCompanyResponse).toList())
@@ -162,5 +168,26 @@ public class AdminCompanyService {
             return null;
         }
         return value.trim();
+    }
+
+    private Specification<Company> buildCompanySpecification(String keyword, CompanyStatus status) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (status != null) {
+                predicates.add(criteriaBuilder.equal(root.get("status"), status));
+            }
+            if (keyword != null) {
+                Join<Object, Object> createdBy = root.join("createdBy", JoinType.LEFT);
+                String pattern = "%" + keyword.toLowerCase() + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("email")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("taxCode")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("industry")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(createdBy.get("email")), pattern)
+                ));
+            }
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 }

@@ -1,11 +1,8 @@
 package com.recruitment.backend.repositories;
 
 import com.recruitment.backend.domain.entities.User;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
@@ -13,7 +10,7 @@ import java.util.Optional;
 import java.util.List;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, UUID> {
+public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificationExecutor<User> {
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
@@ -21,20 +18,4 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     long countByRole_Name(String roleName);
 
     List<User> findByRole_NameAndEnabledTrue(String roleName);
-
-    @Query("""
-            select u from User u
-            where (:role is null or u.role.name = :role)
-              and (:enabled is null or u.enabled = :enabled)
-              and (
-                :keyword is null
-                or lower(u.email) like lower(concat('%', :keyword, '%'))
-              )
-            """)
-    Page<User> searchAdminUsers(
-            @Param("keyword") String keyword,
-            @Param("role") String role,
-            @Param("enabled") Boolean enabled,
-            Pageable pageable
-    );
 }

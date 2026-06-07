@@ -12,11 +12,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import jakarta.persistence.criteria.Predicate;
 
 @Service
 @RequiredArgsConstructor
@@ -39,12 +43,7 @@ public class AdminUserService {
                 Math.min(Math.max(size, 1), 100),
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
-        Page<User> users = userRepository.searchAdminUsers(
-                normalize(keyword),
-                normalizeRole(role),
-                enabled,
-                pageable
-        );
+        Page<User> users = userRepository.findAll(buildUserSpecification(normalize(keyword), normalizeRole(role), enabled), pageable);
 
         return AdminPageResponse.<AdminUserResponse>builder()
                 .items(users.stream().map(adminMapper::toUserResponse).toList())
@@ -99,5 +98,22 @@ public class AdminUserService {
             return null;
         }
         return normalized.toUpperCase();
+    }
+
+    private Specification<User> buildUserSpecification(String keyword, String role, Boolean enabled) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (role != null) {
+                predicates.add(criteriaBuilder.equal(root.get("role").get("name"), role));
+            }
+            if (enabled != null) {
+                predicates.add(criteriaBuilder.equal(root.get("enabled"), enabled));
+            }
+            if (keyword != null) {
+                String pattern = "%" + keyword.toLowerCase() + "%";
+                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("email")), pattern));
+            }
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 }

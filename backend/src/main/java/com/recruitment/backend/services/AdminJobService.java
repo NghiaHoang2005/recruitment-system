@@ -18,13 +18,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -54,14 +60,13 @@ public class AdminJobService {
                 Math.min(Math.max(size, 1), 100),
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
-        Page<Job> jobs = jobRepository.searchAdminJobs(
+        Page<Job> jobs = jobRepository.findAll(buildJobSpecification(
                 normalize(keyword),
                 status,
                 companyStatus,
                 fromDate != null ? fromDate.atStartOfDay() : null,
-                toDate != null ? toDate.atTime(LocalTime.MAX) : null,
-                pageable
-        );
+                toDate != null ? toDate.atTime(LocalTime.MAX) : null
+        ), pageable);
 
         return AdminPageResponse.<AdminJobResponse>builder()
                 .items(jobs.stream().map(this::toJobResponse).toList())
@@ -179,5 +184,38 @@ public class AdminJobService {
             return null;
         }
         return value.trim();
+    }
+
+    private Specification<Job> buildJobSpecification(
+            String keyword,
+            JobStatus status,
+            CompanyStatus companyStatus,
+            LocalDateTime fromDate,
+            LocalDateTime toDate
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            Join<Object, Object> company = root.join("company", JoinType.LEFT);
+            if (status != null) {
+                predicates.add(criteriaBuilder.equal(root.get("status"), status));
+            }
+            if (companyStatus != null) {
+                predicates.add(criteriaBuilder.equal(company.get("status"), companyStatus));
+            }
+            if (fromDate != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), fromDate));
+            }
+            if (toDate != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), toDate));
+            }
+            if (keyword != null) {
+                String pattern = "%" + keyword.toLowerCase() + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("title")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(company.get("name")), pattern)
+                ));
+            }
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 }

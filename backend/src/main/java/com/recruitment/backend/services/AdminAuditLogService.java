@@ -12,13 +12,20 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -57,15 +64,14 @@ public class AdminAuditLogService {
                 Math.min(Math.max(size, 1), 100),
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
-        Page<AdminAuditLog> logs = adminAuditLogRepository.searchAdminAuditLogs(
+        Page<AdminAuditLog> logs = adminAuditLogRepository.findAll(buildAuditLogSpecification(
                 adminUserId,
                 normalize(action),
                 normalize(targetType),
                 targetId,
                 fromDate != null ? fromDate.atStartOfDay() : null,
-                toDate != null ? toDate.atTime(LocalTime.MAX) : null,
-                pageable
-        );
+                toDate != null ? toDate.atTime(LocalTime.MAX) : null
+        ), pageable);
 
         return AdminPageResponse.<AdminAuditLogResponse>builder()
                 .items(logs.stream().map(adminMapper::toAuditLogResponse).toList())
@@ -81,5 +87,38 @@ public class AdminAuditLogService {
             return null;
         }
         return value.trim();
+    }
+
+    private Specification<AdminAuditLog> buildAuditLogSpecification(
+            UUID adminUserId,
+            String action,
+            String targetType,
+            UUID targetId,
+            LocalDateTime fromDate,
+            LocalDateTime toDate
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (adminUserId != null) {
+                Join<Object, Object> adminUser = root.join("adminUser", JoinType.LEFT);
+                predicates.add(criteriaBuilder.equal(adminUser.get("id"), adminUserId));
+            }
+            if (action != null) {
+                predicates.add(criteriaBuilder.equal(root.get("action"), action));
+            }
+            if (targetType != null) {
+                predicates.add(criteriaBuilder.equal(root.get("targetType"), targetType));
+            }
+            if (targetId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("targetId"), targetId));
+            }
+            if (fromDate != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), fromDate));
+            }
+            if (toDate != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), toDate));
+            }
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 }
