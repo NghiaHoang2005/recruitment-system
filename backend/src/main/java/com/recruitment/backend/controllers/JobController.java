@@ -39,7 +39,7 @@ public class JobController {
         return ResponseEntity.ok(ApiResponse.success(jobService.createJob(jobDTO, email)));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:[0-9a-fA-F-]{36}}")
     public ResponseEntity<ApiResponse<JobDTO>> updateJob(@PathVariable UUID id, @RequestBody JobDTO jobDTO, Authentication authentication) {
         String email = authentication.getName();
         return ResponseEntity.ok(ApiResponse.success(jobService.updateJob(id, jobDTO, email)));
@@ -54,7 +54,7 @@ public class JobController {
         return ResponseEntity.ok(ApiResponse.success(jobService.getJobsForUser(authentication.getName(), authorities)));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:[0-9a-fA-F-]{36}}")
     public ResponseEntity<ApiResponse<JobDTO>> getJobById(@PathVariable UUID id, Authentication authentication) {
         List<String> authorities = authentication.getAuthorities()
                 .stream()
@@ -63,7 +63,7 @@ public class JobController {
         return ResponseEntity.ok(ApiResponse.success(jobService.getJobById(id, authentication.getName(), authorities)));
     }
 
-    @GetMapping("/{id}/match")
+    @GetMapping("/{id:[0-9a-fA-F-]{36}}/match")
     public ResponseEntity<ApiResponse<JobMatchService.MatchScore>> getJobMatch(
             @PathVariable UUID id,
             @RequestParam(required = false) UUID cvId
@@ -100,7 +100,7 @@ public class JobController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @GetMapping("/{id}/matches")
+    @GetMapping("/{id:[0-9a-fA-F-]{36}}/matches")
     public ResponseEntity<ApiResponse<List<CvRecommendationResponse>>> getCvMatches(
             @PathVariable UUID id,
             @RequestParam(defaultValue = "10") int topK
