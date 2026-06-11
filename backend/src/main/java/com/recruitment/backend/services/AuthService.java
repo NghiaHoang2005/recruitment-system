@@ -116,6 +116,16 @@ public class AuthService {
         userRepository.save(user);
     }
 
+    @Transactional
+    public void changePassword(UUID userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED); // Or INVALID_PASSWORD if it exists
+        }
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
+
     public AuthResponse authenticate(AuthRequest request) {
         User user = userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 

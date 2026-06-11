@@ -15,6 +15,8 @@ public interface JobEmbeddingRepository extends JpaRepository<JobEmbedding, UUID
 
     List<JobEmbedding> findByJob_Id(UUID jobId);
 
+    List<JobEmbedding> findByJob_IdIn(List<UUID> jobIds);
+
     @Query(value = """
         SELECT cast(e.job_id as varchar) AS jobId,
                (e.vector <=> cast(:queryVector as vector)) AS distance
