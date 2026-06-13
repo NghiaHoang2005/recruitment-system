@@ -1,5 +1,7 @@
 package com.recruitment.backend.services;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
 import com.recruitment.backend.domain.dtos.OpenToWorkUpdateRequest;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
@@ -16,9 +18,13 @@ import com.recruitment.backend.repositories.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,6 +43,14 @@ public class ProfileService {
     private final UserRepository userRepository;
     private final CompanyMemberRepository companyMemberRepository;
     private final ApplicationRepository applicationRepository;
+    private final Cloudinary cloudinary;
+
+    private static final long MAX_AVATAR_SIZE_BYTES = 5L * 1024 * 1024;
+    private static final Set<String> ALLOWED_AVATAR_CONTENT_TYPES = Set.of(
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+    );
 
     @Transactional
     public CandidateProfileResponse getCandidateProfile(UUID userId) {
@@ -131,5 +145,47 @@ public class ProfileService {
         candidateRepository.save(candidate);
 
         return getCandidateProfile(userId);
+    }
+
+    @Transactional
+    public CandidateProfileResponse updateAvatar(UUID userId, MultipartFile file) {
+        validateAvatar(file);
+        Candidate candidate = candidateRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
+
+        try {
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "candidate_avatars",
+                            "public_id", userId.toString(),
+                            "resource_type", "image",
+                            "overwrite", true,
+                            "invalidate", true
+                    )
+            );
+            Object secureUrl = uploadResult.get("secure_url");
+            if (secureUrl == null || secureUrl.toString().isBlank()) {
+                throw new AppException(ErrorCode.AVATAR_UPLOAD_FAILED);
+            }
+
+            candidate.setProfilePictureUrl(secureUrl.toString());
+            candidateRepository.save(candidate);
+            return getCandidateProfile(userId);
+        } catch (IOException e) {
+            throw new AppException(ErrorCode.AVATAR_UPLOAD_FAILED);
+        }
+    }
+
+    private void validateAvatar(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.AVATAR_FILE_EMPTY);
+        }
+        if (file.getSize() > MAX_AVATAR_SIZE_BYTES) {
+            throw new AppException(ErrorCode.AVATAR_FILE_TOO_LARGE);
+        }
+        if (!ALLOWED_AVATAR_CONTENT_TYPES.contains(file.getContentType())) {
+            throw new AppException(ErrorCode.AVATAR_INVALID_FILE_TYPE);
+        }
     }
 }

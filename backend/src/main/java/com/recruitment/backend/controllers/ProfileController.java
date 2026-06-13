@@ -12,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -53,5 +54,11 @@ public class ProfileController {
     @PutMapping("/candidate/open-to-work")
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateOpenToWork(@RequestBody OpenToWorkUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success(profileService.updateOpenToWork(getCurrentUserId(), request)));
+    }
+
+    @PutMapping(value = "/candidate/avatar", consumes = "multipart/form-data")
+    public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateCandidateAvatar(
+            @RequestPart("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.success(profileService.updateAvatar(getCurrentUserId(), file)));
     }
 }

@@ -53,6 +53,10 @@ public enum ErrorCode {
     RESET_TOKEN_INVALID_OR_EXPIRED(3004, "Reset token không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
     OTP_TOO_MANY_REQUESTS(3005, "Bạn đã yêu cầu OTP quá thường xuyên. Vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS),
     CANDIDATE_PROFILE_ALREADY_EXISTS(3006, "Thông tin ứng viên đã tồn tại", HttpStatus.BAD_REQUEST),
+    AVATAR_FILE_EMPTY(3007, "Vui lòng chọn ảnh đại diện", HttpStatus.BAD_REQUEST),
+    AVATAR_FILE_TOO_LARGE(3008, "Ảnh đại diện không được vượt quá 5 MB", HttpStatus.BAD_REQUEST),
+    AVATAR_INVALID_FILE_TYPE(3009, "Ảnh đại diện chỉ hỗ trợ JPG, PNG hoặc WebP", HttpStatus.BAD_REQUEST),
+    AVATAR_UPLOAD_FAILED(3010, "Không thể tải ảnh đại diện lên", HttpStatus.INTERNAL_SERVER_ERROR),
 
     MATCHING_WEIGHT_PROFILE_NOT_FOUND(4001, "Weight profile không tồn tại", HttpStatus.NOT_FOUND),
     MATCHING_DATASET_NOT_FOUND(4002, "Relevance dataset không tồn tại", HttpStatus.NOT_FOUND),
