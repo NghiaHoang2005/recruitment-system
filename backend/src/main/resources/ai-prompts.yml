@@ -368,3 +368,116 @@ prompts:
     - action_plan
     - fit_score (0-100)
     - summary ngắn
+
+  mock_interview_v1.vi.question_plan: |
+    Bạn là chuyên gia thiết kế phỏng vấn thử cho ứng viên.
+    Chỉ trả về JSON hợp lệ theo schema, không markdown và không giải thích.
+
+    Schema:
+    {{target_schema}}
+
+    Session seed để tạo biến thể: {{session_seed}}
+    Ngôn ngữ đầu ra: tiếng Việt tự nhiên, giữ nguyên tên công nghệ tiếng Anh.
+    Loại phỏng vấn: {{interview_type}}
+    Số câu hỏi chính: {{question_count}}
+
+    Vị trí: {{job_title}}
+    Cấp bậc: {{job_level}}
+    Mô tả công việc:
+    {{job_description}}
+
+    Yêu cầu:
+    {{job_requirements}}
+
+    Quy tắc:
+    1. Mỗi câu chỉ hỏi một ý chính, phù hợp với cấp bậc và JD.
+    2. Ít nhất một nửa số câu phải bám trực tiếp vào kỹ năng, trách nhiệm hoặc tình huống trong JD.
+    3. Nếu loại là MIXED, phải có cả câu kỹ thuật và hành vi.
+    4. Không hỏi tuổi, giới tính, hôn nhân, sức khỏe, tôn giáo hoặc thông tin nhạy cảm.
+    5. Không lặp lại câu hỏi cùng ý.
+    6. Tạo biến thể khác cho các session khác nhau.
+    7. Câu hỏi phải hữu ích để luyện tập, không quyết định đạt hay trượt.
+
+  mock_interview_v1.default.question_plan: |
+    Generate a mock interview question plan grounded in the job description.
+    Return only valid JSON matching this schema:
+    {{target_schema}}
+    Session seed: {{session_seed}}
+    Interview type: {{interview_type}}
+    Question count: {{question_count}}
+    Job title: {{job_title}}
+    Job level: {{job_level}}
+    Job description: {{job_description}}
+    Job requirements: {{job_requirements}}
+    Keep technology names in English. Avoid sensitive or discriminatory questions.
+
+  mock_interview_v1.vi.follow_up: |
+    Bạn là người phỏng vấn thử. Hãy tạo đúng một câu hỏi đào sâu dựa trực tiếp trên câu trả lời vừa rồi.
+    Chỉ trả về JSON hợp lệ theo schema:
+    {{target_schema}}
+
+    Vị trí: {{job_title}}
+    Mô tả công việc: {{job_description}}
+    Yêu cầu công việc: {{job_requirements}}
+    Câu hỏi trước: {{parent_question}}
+    Năng lực: {{competency}}
+    Chủ đề mong đợi: {{expected_topics}}
+    Câu trả lời của ứng viên:
+    {{candidate_answer}}
+
+    Quy tắc:
+    1. Không hỏi lại điều ứng viên đã nói rõ.
+    2. Chọn đúng một khoảng trống quan trọng: vai trò cá nhân, quyết định, lý do, trade-off, kiểm chứng, kết quả hoặc bài học.
+    3. Không mặc định yêu cầu số liệu nếu số liệu không phù hợp với câu trả lời.
+    4. Câu hỏi ngắn, tự nhiên và bám JD.
+    5. Giữ nguyên thuật ngữ kỹ thuật tiếng Anh.
+
+  mock_interview_v1.default.follow_up: |
+    Generate one concise follow-up question grounded in the previous answer and job.
+    Return only valid JSON matching:
+    {{target_schema}}
+    Job: {{job_title}}
+    Description: {{job_description}}
+    Previous question: {{parent_question}}
+    Competency: {{competency}}
+    Candidate answer: {{candidate_answer}}
+    Probe one meaningful missing detail and do not always ask for numbers.
+
+  mock_interview_v1.vi.feedback: |
+    Bạn là chuyên gia huấn luyện phỏng vấn. Chấm nội dung transcript theo rubric và JD.
+    Chỉ trả về JSON hợp lệ theo schema, không markdown:
+    {{target_schema}}
+
+    Vị trí: {{job_title}}
+    Cấp bậc: {{job_level}}
+    Loại phỏng vấn: {{interview_type}}
+    Mô tả công việc:
+    {{job_description}}
+    Yêu cầu:
+    {{job_requirements}}
+
+    Rubric:
+    {{rubric}}
+
+    Transcript:
+    {{questions_and_answers}}
+
+    Quy tắc:
+    1. Chỉ đánh giá nội dung transcript, không suy diễn từ giọng nói.
+    2. overall_score từ 0 đến 100 và là trung bình có trọng số của criteria_scores.
+    3. Mỗi evidence phải trích dẫn hoặc diễn giải chi tiết thực sự có trong câu trả lời.
+    4. Tạo feedback riêng cho từng câu hỏi; không dùng cùng một nhận xét hay ví dụ mẫu cho mọi câu.
+    5. better_answer_example phải bám câu hỏi, JD và thông tin ứng viên đã cung cấp; không bịa kinh nghiệm mới.
+    6. Nếu câu trả lời quá thiếu, nói rõ thiếu dữ liệu và hạ confidence.
+    7. Giữ nguyên tên công nghệ tiếng Anh.
+
+  mock_interview_v1.default.feedback: |
+    Score this mock interview transcript against the job and rubric.
+    Return only valid JSON matching:
+    {{target_schema}}
+    Job: {{job_title}}
+    Job description: {{job_description}}
+    Requirements: {{job_requirements}}
+    Rubric: {{rubric}}
+    Transcript: {{questions_and_answers}}
+    Give distinct, evidence-based feedback for every answer. Do not invent experience.

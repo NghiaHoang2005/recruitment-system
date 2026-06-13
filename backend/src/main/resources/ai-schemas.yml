@@ -274,6 +274,52 @@ json_schemas:
       "action_plan": ["string"]
     }
 
+  mock_interview_v1.question_plan.json: |
+    {
+      "questions": [
+        {
+          "question_type": "INTRO|BEHAVIORAL|TECHNICAL|SITUATIONAL|REFLECTION|CLOSING",
+          "question_text": "string",
+          "competency": "string",
+          "expected_topics": ["string"]
+        }
+      ]
+    }
+
+  mock_interview_v1.follow_up.json: |
+    {
+      "question": "string",
+      "reason": "string"
+    }
+
+  mock_interview_v1.feedback.json: |
+    {
+      "overall_score": 0,
+      "score_label": "CAN_CAI_THIEN|DAT|KHA|TOT",
+      "confidence": "LOW|MEDIUM|HIGH",
+      "overall_summary": "string",
+      "criteria_scores": [
+        {
+          "criterion": "CONTENT_KNOWLEDGE|RELEVANCE|EVIDENCE|STRUCTURE|CLARITY",
+          "score": 0,
+          "weight": 0,
+          "evidence": ["string"]
+        }
+      ],
+      "strengths": ["string"],
+      "improvements": ["string"],
+      "next_steps": ["string"],
+      "question_feedback": [
+        {
+          "questionId": "uuid|null",
+          "answerSummary": "string",
+          "whatWentWell": ["string"],
+          "whatToImprove": ["string"],
+          "betterAnswerExample": "string"
+        }
+      ]
+    }
+
 # Error recovery prompts - used when AI output needs repair
 repair_prompts:
   # Generic JSON repair prompt
