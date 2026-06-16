@@ -23,7 +23,7 @@ public enum ErrorCode {
     APPLICATION_ALREADY_EXISTS(1015, "Ban da ung tuyen cong viec nay", HttpStatus.BAD_REQUEST),
     APPLICATION_INVALID_STATUS(1016, "Trang thai don ung tuyen khong hop le", HttpStatus.BAD_REQUEST),
     ADMIN_ACCESS_DENIED(1017, "Chi admin moi co quyen thuc hien thao tac nay", HttpStatus.FORBIDDEN),
-    ADMIN_INVALID_MODERATION_ACTION(1018, "Thao tac moderation khong hop le", HttpStatus.BAD_REQUEST),
+    ADMIN_INVALID_MODERATION_ACTION(1018, "Thao tác kiểm duyệt không hợp lệ với trạng thái hiện tại", HttpStatus.BAD_REQUEST),
     USER_DISABLED(1019, "Tai khoan da bi vo hieu hoa", HttpStatus.FORBIDDEN),
 
     CV_NOT_FOUND(2001, "CV không tồn tại", HttpStatus.NOT_FOUND),
@@ -57,6 +57,12 @@ public enum ErrorCode {
     AVATAR_FILE_TOO_LARGE(3008, "Ảnh đại diện không được vượt quá 5 MB", HttpStatus.BAD_REQUEST),
     AVATAR_INVALID_FILE_TYPE(3009, "Ảnh đại diện chỉ hỗ trợ JPG, PNG hoặc WebP", HttpStatus.BAD_REQUEST),
     AVATAR_UPLOAD_FAILED(3010, "Không thể tải ảnh đại diện lên", HttpStatus.INTERNAL_SERVER_ERROR),
+    JOB_REPORT_REASON_REQUIRED(3011, "Vui lòng chọn lý do báo cáo", HttpStatus.BAD_REQUEST),
+    JOB_REPORT_ALREADY_EXISTS(3012, "Bạn đã báo cáo tin tuyển dụng này", HttpStatus.CONFLICT),
+    JOB_REPORT_NOT_FOUND(3013, "Không tìm thấy báo cáo tin tuyển dụng", HttpStatus.NOT_FOUND),
+    JOB_REPORT_INVALID_STATUS(3014, "Trạng thái xử lý báo cáo không hợp lệ", HttpStatus.BAD_REQUEST),
+    JOB_CATEGORY_REQUIRED(3015, "Vui lòng chọn ít nhất một ngành nghề", HttpStatus.BAD_REQUEST),
+    JOB_CATEGORY_INVALID(3016, "Ngành nghề đã chọn không hợp lệ", HttpStatus.BAD_REQUEST),
 
     MATCHING_WEIGHT_PROFILE_NOT_FOUND(4001, "Weight profile không tồn tại", HttpStatus.NOT_FOUND),
     MATCHING_DATASET_NOT_FOUND(4002, "Relevance dataset không tồn tại", HttpStatus.NOT_FOUND),

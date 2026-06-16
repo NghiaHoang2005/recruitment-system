@@ -1,6 +1,7 @@
 package com.recruitment.backend.mappers;
 
 import com.recruitment.backend.domain.dtos.JobDTO;
+import com.recruitment.backend.domain.dtos.JobCategoryDTO;
 import com.recruitment.backend.domain.dtos.JobRequirementItemDTO;
 import com.recruitment.backend.domain.dtos.JobRequirementSectionDTO;
 import com.recruitment.backend.domain.entities.Job;
@@ -38,6 +39,12 @@ public class JobMapper {
                 .publishedAt(job.getPublishedAt())
                 .closedAt(job.getClosedAt())
                 .recruiterId(job.getRecruiter() != null ? job.getRecruiter().getId() : null)
+                .categories(job.getCategories() == null ? List.of() : job.getCategories().stream()
+                        .map(category -> JobCategoryDTO.builder()
+                                .code(category.getCode())
+                                .name(category.getName())
+                                .build())
+                        .toList())
                 .requirementSections(mapSections(job.getRequirementSections()))
                 .build();
     }

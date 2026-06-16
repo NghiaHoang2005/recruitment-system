@@ -1,6 +1,7 @@
 package com.recruitment.backend.services;
 
 import com.recruitment.backend.domain.dtos.JobDTO;
+import com.recruitment.backend.domain.dtos.JobCategoryDTO;
 import com.recruitment.backend.domain.dtos.JobRequirementItemDTO;
 import com.recruitment.backend.domain.dtos.JobRequirementSectionDTO;
 import com.recruitment.backend.domain.entities.*;
@@ -40,6 +41,7 @@ public class JobService {
     private final JobMapper jobMapper;
     private final NotificationFacade notificationFacade;
     private final AdminSettingsService adminSettingsService;
+    private final JobCategoryRepository jobCategoryRepository;
 
     @Transactional
     public JobDTO createJob(JobDTO dto, String userEmail) {
@@ -78,6 +80,7 @@ public class JobService {
                 .build();
 
         replaceRequirementSections(job, dto.getRequirementSections());
+        replaceCategories(job, dto.getCategories());
         updateNormalizedText(job);
 
         Job savedJob = jobRepository.save(job);
@@ -115,6 +118,7 @@ public class JobService {
         job.setDeadline(dto.getDeadline());
 
         replaceRequirementSections(job, dto.getRequirementSections());
+        replaceCategories(job, dto.getCategories());
         updateNormalizedText(job);
 
         Job savedJob = jobRepository.save(job);
@@ -238,6 +242,24 @@ public class JobService {
         String combinedText = jobEmbeddingTextBuilder.buildEmbeddingText(job);
         String normalized = textNormalizationService.normalize(combinedText);
         job.setNormalizedText(normalized.isBlank() ? null : normalized);
+    }
+
+    private void replaceCategories(Job job, List<JobCategoryDTO> categoryDtos) {
+        if (categoryDtos == null || categoryDtos.isEmpty()) {
+            throw new AppException(ErrorCode.JOB_CATEGORY_REQUIRED);
+        }
+        List<String> codes = categoryDtos.stream()
+                .map(JobCategoryDTO::getCode)
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        List<JobCategory> categories = jobCategoryRepository.findByCodeIn(codes);
+        if (categories.size() != codes.size()) {
+            throw new AppException(ErrorCode.JOB_CATEGORY_INVALID);
+        }
+        job.getCategories().clear();
+        job.getCategories().addAll(categories);
     }
 
     private void notifyAdminsJobReviewRequested(Job job, User requester) {

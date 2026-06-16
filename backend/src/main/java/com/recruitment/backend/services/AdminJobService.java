@@ -87,6 +87,7 @@ public class AdminJobService {
     @Transactional
     public AdminJobResponse approveJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
+        requireStatus(job, JobStatus.PENDING, JobStatus.REJECTED);
         job.setStatus(JobStatus.PUBLISHED);
         if (job.getPublishedAt() == null) {
             job.setPublishedAt(LocalDateTime.now());
@@ -104,6 +105,7 @@ public class AdminJobService {
     @Transactional
     public AdminJobResponse rejectJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
+        requireStatus(job, JobStatus.PENDING);
         job.setStatus(JobStatus.REJECTED);
         job.setClosedAt(null);
         Job savedJob = jobRepository.save(job);
@@ -118,6 +120,7 @@ public class AdminJobService {
     @Transactional
     public AdminJobResponse flagJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
+        requireStatus(job, JobStatus.PUBLISHED);
         job.setStatus(JobStatus.FLAGGED);
         Job savedJob = jobRepository.save(job);
         adminAuditLogService.record("JOB_FLAGGED", "JOB", jobId, reason);
@@ -131,7 +134,12 @@ public class AdminJobService {
     @Transactional
     public AdminJobResponse unflagJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
-        job.setStatus(job.getPublishedAt() == null ? JobStatus.PENDING : JobStatus.PUBLISHED);
+        requireStatus(job, JobStatus.FLAGGED);
+        job.setStatus(JobStatus.PUBLISHED);
+        if (job.getPublishedAt() == null) {
+            job.setPublishedAt(LocalDateTime.now());
+        }
+        job.setClosedAt(null);
         Job savedJob = jobRepository.save(job);
         adminAuditLogService.record("JOB_UNFLAGGED", "JOB", jobId, reason);
         return toJobResponse(savedJob);
@@ -141,6 +149,7 @@ public class AdminJobService {
     @Transactional
     public AdminJobResponse closeJob(UUID jobId, String reason) {
         Job job = findJob(jobId);
+        requireStatus(job, JobStatus.PUBLISHED, JobStatus.FLAGGED);
         job.setStatus(JobStatus.CLOSED);
         job.setClosedAt(LocalDateTime.now());
         Job savedJob = jobRepository.save(job);
@@ -154,6 +163,15 @@ public class AdminJobService {
     private Job findJob(UUID jobId) {
         return jobRepository.findById(jobId)
                 .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
+    }
+
+    private void requireStatus(Job job, JobStatus... allowedStatuses) {
+        for (JobStatus allowedStatus : allowedStatuses) {
+            if (job.getStatus() == allowedStatus) {
+                return;
+            }
+        }
+        throw new AppException(ErrorCode.ADMIN_INVALID_MODERATION_ACTION);
     }
 
     private AdminJobResponse toJobResponse(Job job) {

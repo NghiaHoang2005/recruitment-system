@@ -16,6 +16,8 @@ import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -95,6 +97,16 @@ public class Job {
     @OrderBy("displayOrder ASC")
     @Builder.Default
     private List<JobRequirementSection> requirementSections = new ArrayList<>();
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "job_category_mappings",
+            joinColumns = @JoinColumn(name = "job_id"),
+            inverseJoinColumns = @JoinColumn(name = "category_id")
+    )
+    @OrderBy("displayOrder ASC")
+    @Builder.Default
+    private Set<JobCategory> categories = new LinkedHashSet<>();
 
     @PrePersist
     protected void onCreate() {

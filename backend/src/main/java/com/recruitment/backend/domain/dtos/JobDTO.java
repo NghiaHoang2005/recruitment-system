@@ -40,5 +40,6 @@ public class JobDTO {
     private LocalDateTime publishedAt;
     private LocalDateTime closedAt;
     private UUID recruiterId;
+    private List<JobCategoryDTO> categories;
     private List<JobRequirementSectionDTO> requirementSections;
 }

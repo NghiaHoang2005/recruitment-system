@@ -29,14 +29,18 @@ public class FtsSearchService {
     private final CvRepository cvRepository;
     private final JobMapper jobMapper;
 
-    public List<JobFtsSearchResponse> searchJobs(String query, JobStatus status, int limit) {
+    public List<JobFtsSearchResponse> searchJobs(String query, JobStatus status, String categoryCode, int limit) {
         if (query == null || query.isBlank()) {
             return List.of();
         }
         int safeLimit = clampLimit(limit);
         String statusValue = status == null ? JobStatus.PUBLISHED.name() : status.name();
 
-        List<JobRepository.JobFtsView> rows = jobRepository.searchJobsByFts(query, statusValue, safeLimit);
+        String normalizedCategoryCode = categoryCode == null || categoryCode.isBlank()
+                ? null
+                : categoryCode.trim();
+        List<JobRepository.JobFtsView> rows =
+                jobRepository.searchJobsByFts(query, statusValue, normalizedCategoryCode, safeLimit);
         if (rows.isEmpty()) {
             return List.of();
         }

@@ -26,9 +26,10 @@ public class FtsSearchController {
     public ResponseEntity<ApiResponse<List<JobFtsSearchResponse>>> searchJobs(
             @RequestParam String q,
             @RequestParam(required = false) JobStatus status,
+            @RequestParam(required = false) String categoryCode,
             @RequestParam(defaultValue = "10") int limit
     ) {
-        List<JobFtsSearchResponse> response = ftsSearchService.searchJobs(q, status, limit);
+        List<JobFtsSearchResponse> response = ftsSearchService.searchJobs(q, status, categoryCode, limit);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

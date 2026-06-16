@@ -21,6 +21,7 @@ public class JobEmbeddingTextBuilder {
     public String buildEmbeddingText(Job job) {
         StringBuilder builder = new StringBuilder();
         appendLine(builder, "Job title", job.getTitle());
+        appendLine(builder, "Job categories", formatCategories(job));
         appendLine(builder, "Job description", job.getDescription());
         appendLine(builder, "Working time", job.getWorkingTime());
         appendLine(builder, "Location", job.getLocation());
@@ -39,6 +40,7 @@ public class JobEmbeddingTextBuilder {
     public String buildDescriptionText(Job job) {
         StringBuilder builder = new StringBuilder();
         appendLine(builder, "Job title", job.getTitle());
+        appendLine(builder, "Job categories", formatCategories(job));
         appendLine(builder, "Job description", job.getDescription());
         appendLine(builder, "Working time", job.getWorkingTime());
         appendLine(builder, "Location", job.getLocation());
@@ -136,6 +138,16 @@ public class JobEmbeddingTextBuilder {
             return "From " + job.getMinSalary() + currency;
         }
         return "Up to " + job.getMaxSalary() + currency;
+    }
+
+    private String formatCategories(Job job) {
+        if (job.getCategories() == null || job.getCategories().isEmpty()) {
+            return "";
+        }
+        return job.getCategories().stream()
+                .map(category -> category.getName())
+                .sorted()
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private void appendLine(StringBuilder builder, String label, Object value) {

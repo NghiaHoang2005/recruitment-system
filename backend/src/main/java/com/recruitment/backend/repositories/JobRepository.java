@@ -36,12 +36,22 @@ public interface JobRepository extends JpaRepository<Job, UUID>, JpaSpecificatio
             )
         )
         AND (:status IS NULL OR j.status = :status)
+        AND (
+            :categoryCode IS NULL
+            OR EXISTS (
+                SELECT 1
+                FROM job_category_mappings jcm
+                JOIN job_categories jc ON jc.id = jcm.category_id
+                WHERE jcm.job_id = j.id AND jc.code = :categoryCode
+            )
+        )
         ORDER BY rank DESC, j.created_at DESC
         LIMIT :limit
         """, nativeQuery = true)
     List<JobFtsView> searchJobsByFts(
             @Param("query") String query,
             @Param("status") String status,
+            @Param("categoryCode") String categoryCode,
             @Param("limit") int limit
     );
 

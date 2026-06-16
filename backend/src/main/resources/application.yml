@@ -26,6 +26,13 @@ spring:
       idle-timeout: 30000
       max-lifetime: 300000
       connection-timeout: 30000
+  sql:
+    init:
+      mode: always
+      schema-locations:
+        - classpath:db-migration-saved-jobs.sql
+        - classpath:db-migration-job-reports.sql
+        - classpath:db-migration-job-categories.sql
   jpa:
     show-sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect

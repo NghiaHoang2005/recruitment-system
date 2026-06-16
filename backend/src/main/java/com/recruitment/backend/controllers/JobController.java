@@ -75,10 +75,14 @@ public class JobController {
     @GetMapping("/recommendations")
     public ResponseEntity<ApiResponse<List<JobRecommendationResponse>>> getJobRecommendations(
             @RequestParam(required = false) UUID cvId,
+            @RequestParam(required = false) String categoryCode,
             @RequestParam(defaultValue = "10") int topK
     ) {
+        int candidatePoolSize = categoryCode == null || categoryCode.isBlank()
+                ? topK
+                : Math.min(Math.max(topK * 5, topK), 50);
         List<JobMatchService.RecommendationScore> scores =
-                jobMatchService.recommendJobs(getCurrentUserId(), cvId, topK);
+                jobMatchService.recommendJobs(getCurrentUserId(), cvId, candidatePoolSize);
         List<UUID> jobIds = scores.stream().map(JobMatchService.RecommendationScore::getJobId).toList();
         Map<UUID, JobDTO> jobMap = jobService.getJobsByIds(jobIds).stream()
                 .collect(Collectors.toMap(JobDTO::getId, job -> job));
@@ -86,7 +90,7 @@ public class JobController {
         List<JobRecommendationResponse> response = scores.stream()
                 .map(score -> {
                     JobDTO job = jobMap.get(score.getJobId());
-                    if (job == null) {
+                    if (job == null || !matchesCategory(job, categoryCode)) {
                         return null;
                     }
                     return JobRecommendationResponse.builder()
@@ -95,9 +99,18 @@ public class JobController {
                             .build();
                 })
                 .filter(Objects::nonNull)
+                .limit(topK)
                 .toList();
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    private boolean matchesCategory(JobDTO job, String categoryCode) {
+        if (categoryCode == null || categoryCode.isBlank()) {
+            return true;
+        }
+        return job.getCategories() != null && job.getCategories().stream()
+                .anyMatch(category -> categoryCode.trim().equals(category.getCode()));
     }
 
     @GetMapping("/{id:[0-9a-fA-F-]{36}}/matches")
