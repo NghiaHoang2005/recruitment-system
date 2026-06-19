@@ -14,9 +14,26 @@ import java.util.Collection;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
+
 @Repository
 public interface JobRepository extends JpaRepository<Job, UUID>, JpaSpecificationExecutor<Job> {
     List<Job> findByRecruiterId(UUID recruiterId);
+
+    @EntityGraph(attributePaths = {"company", "categories"})
+    Page<Job> findAll(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"company", "categories"})
+    Page<Job> findByRecruiterId(UUID recruiterId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"company", "categories"})
+    Page<Job> findByCompany_Id(UUID companyId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"company", "categories"})
+    Page<Job> findByStatus(JobStatus status, Pageable pageable);
+
     List<Job> findByRecruiterIdOrderByCreatedAtDesc(UUID recruiterId);
     List<Job> findByCompany_IdOrderByCreatedAtDesc(UUID companyId);
     List<Job> findByStatusOrderByCreatedAtDesc(JobStatus status);
