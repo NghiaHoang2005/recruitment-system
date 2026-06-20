@@ -5,6 +5,7 @@ import com.recruitment.backend.domain.enums.JoinStatus;
 import com.recruitment.backend.services.CompanyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -39,6 +40,13 @@ public class CompanyController {
     public ApiResponse<CompanyDashboardResponse> updateCompany(@PathVariable String companyId, @RequestBody CompanyRequest request){
         return ApiResponse.<CompanyDashboardResponse>builder()
                 .result(companyService.updateCompany(companyId, request))
+                .build();
+    }
+
+    @PutMapping(value = "/{companyId}/logo", consumes = "multipart/form-data")
+    public ApiResponse<CompanyDashboardResponse> updateCompanyLogo(@PathVariable String companyId, @RequestPart("file") MultipartFile file) {
+        return ApiResponse.<CompanyDashboardResponse>builder()
+                .result(companyService.updateCompanyLogo(companyId, file))
                 .build();
     }
 

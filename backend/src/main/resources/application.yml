@@ -34,6 +34,7 @@ spring:
         - classpath:db-migration-job-reports.sql
         - classpath:db-migration-job-categories.sql
         - classpath:db-migration-locations.sql
+        - classpath:db-migration-company-logo.sql
   jpa:
     show-sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect

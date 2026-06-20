@@ -22,4 +22,5 @@ public class CompanyRequest {
     private int companySize;
     private String taxCode;
     private String businessLicense;
+    private String logoUrl;
 }

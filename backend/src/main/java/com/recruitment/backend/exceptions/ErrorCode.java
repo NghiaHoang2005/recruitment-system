@@ -64,6 +64,10 @@ public enum ErrorCode {
     JOB_CATEGORY_REQUIRED(3015, "Vui lòng chọn ít nhất một ngành nghề", HttpStatus.BAD_REQUEST),
     JOB_CATEGORY_INVALID(3016, "Ngành nghề đã chọn không hợp lệ", HttpStatus.BAD_REQUEST),
     LOCATION_INVALID(3017, "Địa điểm đã chọn không hợp lệ", HttpStatus.BAD_REQUEST),
+    COMPANY_LOGO_FILE_EMPTY(3018, "Vui lòng chọn logo công ty", HttpStatus.BAD_REQUEST),
+    COMPANY_LOGO_FILE_TOO_LARGE(3019, "Logo công ty không được vượt quá 5 MB", HttpStatus.BAD_REQUEST),
+    COMPANY_LOGO_INVALID_FILE_TYPE(3020, "Logo công ty chỉ hỗ trợ JPG, PNG hoặc WebP", HttpStatus.BAD_REQUEST),
+    COMPANY_LOGO_UPLOAD_FAILED(3021, "Không thể tải logo công ty lên", HttpStatus.INTERNAL_SERVER_ERROR),
 
     MATCHING_WEIGHT_PROFILE_NOT_FOUND(4001, "Weight profile không tồn tại", HttpStatus.NOT_FOUND),
     MATCHING_DATASET_NOT_FOUND(4002, "Relevance dataset không tồn tại", HttpStatus.NOT_FOUND),

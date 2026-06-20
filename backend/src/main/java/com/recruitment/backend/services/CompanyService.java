@@ -1,5 +1,7 @@
 package com.recruitment.backend.services;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.recruitment.backend.domain.dtos.CompanyMemberResponse;
 import com.recruitment.backend.domain.dtos.CompanyDashboardResponse;
 import com.recruitment.backend.domain.dtos.CompanyInviteRequest;
@@ -34,10 +36,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -56,6 +62,14 @@ public class CompanyService {
     private final UserRepository userRepository;
     private final NotificationFacade notificationFacade;
     private final AdminSettingsService adminSettingsService;
+    private final Cloudinary cloudinary;
+
+    private static final long MAX_LOGO_SIZE_BYTES = 5L * 1024 * 1024;
+    private static final Set<String> ALLOWED_LOGO_CONTENT_TYPES = Set.of(
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+    );
 
     @Transactional
     @PreAuthorize("hasRole('RECRUITER')")
@@ -175,6 +189,39 @@ public class CompanyService {
         companyRepository.save(company);
         return toDashboardResponse(companyMemberRepository.findByCompany_IdAndUser_IdAndJoinStatus(parsedCompanyId, user.getId(), JoinStatus.APPROVED)
                 .orElseThrow(() -> new AppException(ErrorCode.COMPANY_MEMBER_NOT_FOUND)));
+    }
+
+    @Transactional
+    @PreAuthorize("hasRole('RECRUITER')")
+    public CompanyDashboardResponse updateCompanyLogo(String companyId, MultipartFile file) {
+        validateLogo(file);
+        User user = securityUtil.getCurrentUser();
+        UUID parsedCompanyId = UUID.fromString(companyId);
+        CompanyMember membership = requireOwner(parsedCompanyId, user);
+        Company company = membership.getCompany();
+
+        try {
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "company_logos",
+                            "public_id", parsedCompanyId.toString(),
+                            "resource_type", "image",
+                            "overwrite", true,
+                            "invalidate", true
+                    )
+            );
+            Object secureUrl = uploadResult.get("secure_url");
+            if (secureUrl == null || secureUrl.toString().isBlank()) {
+                throw new AppException(ErrorCode.COMPANY_LOGO_UPLOAD_FAILED);
+            }
+
+            company.setLogoUrl(secureUrl.toString());
+            companyRepository.save(company);
+            return toDashboardResponse(membership);
+        } catch (IOException e) {
+            throw new AppException(ErrorCode.COMPANY_LOGO_UPLOAD_FAILED);
+        }
     }
 
     @PreAuthorize("hasRole('RECRUITER')")
@@ -316,6 +363,7 @@ public class CompanyService {
                 .companySize(company.getCompanySize())
                 .taxCode(company.getTaxCode())
                 .businessLicense(company.getBusinessLicense())
+                .logoUrl(company.getLogoUrl())
                 .status(company.getStatus())
                 .currentUserCompanyRole(membership.getRole())
                 .memberCount(memberCount)
@@ -323,6 +371,18 @@ public class CompanyService {
                 .pipelineCandidateCount(0)
                 .pendingRequestCount(pendingRequestCount)
                 .build();
+    }
+
+    private void validateLogo(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.COMPANY_LOGO_FILE_EMPTY);
+        }
+        if (file.getSize() > MAX_LOGO_SIZE_BYTES) {
+            throw new AppException(ErrorCode.COMPANY_LOGO_FILE_TOO_LARGE);
+        }
+        if (!ALLOWED_LOGO_CONTENT_TYPES.contains(file.getContentType())) {
+            throw new AppException(ErrorCode.COMPANY_LOGO_INVALID_FILE_TYPE);
+        }
     }
 
     private CompanyInviteResponse toInviteResponse(CompanyInvite invite) {

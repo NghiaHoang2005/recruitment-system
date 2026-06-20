@@ -36,6 +36,13 @@ public class JobDTO {
     private LocalDateTime deadline;
     private UUID companyId;
     private String companyName;
+    private String companyLogoUrl;
+    private String companyIndustry;
+    private Integer companySize;
+    private String companyAddress;
+    private String companyCity;
+    private String companyCountry;
+    private String companyWebsite;
     private JobStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
