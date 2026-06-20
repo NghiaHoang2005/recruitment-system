@@ -3,6 +3,7 @@ package com.recruitment.backend.controllers;
 import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.notifications.dto.requests.ApplicationResultNotificationRequest;
 import com.recruitment.backend.notifications.dto.requests.ApplicationSubmittedNotificationRequest;
+import com.recruitment.backend.notifications.dto.requests.InviteToApplyNotificationRequest;
 import com.recruitment.backend.notifications.dto.requests.JobMatchNotificationRequest;
 import com.recruitment.backend.notifications.services.NotificationFacade;
 import jakarta.validation.Valid;
@@ -49,5 +50,24 @@ public class NotificationController {
                 request.getIdempotencyKey()
         );
         return ResponseEntity.ok(ApiResponse.success("Job match notification queued"));
+    }
+
+    @PostMapping("/invite-to-apply")
+    public ResponseEntity<ApiResponse<String>> notifyInviteToApply(@RequestBody @Valid InviteToApplyNotificationRequest request) {
+        notificationFacade.notifyInviteToApply(
+                request.getEmail(),
+                request.getCandidateName(),
+                request.getCompanyName(),
+                request.getJobTitle(),
+                request.getJobUrl(),
+                request.getIdempotencyKey()
+        );
+        return ResponseEntity.ok(ApiResponse.success("Invite to apply notification queued"));
+    }
+
+    @GetMapping("/invite-to-apply/status")
+    public ResponseEntity<ApiResponse<Boolean>> checkInviteStatus(@RequestParam String jobId, @RequestParam String candidateId) {
+        boolean hasInvited = notificationFacade.hasInvitedToApply(jobId, candidateId);
+        return ResponseEntity.ok(ApiResponse.success(hasInvited));
     }
 }

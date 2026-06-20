@@ -45,6 +45,11 @@ public class NotificationService {
         return notificationRepository.save(notification);
     }
 
+    @Transactional(readOnly = true)
+    public boolean existsByIdempotencyKey(String idempotencyKey) {
+        return notificationRepository.findByIdempotencyKey(idempotencyKey).isPresent();
+    }
+
     public int defaultOtpTtlMinutes() {
         return notificationProperties.getOtpTtlMinutes();
     }

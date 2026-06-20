@@ -60,6 +60,22 @@ public class NotificationFacade {
     }
 
     @Transactional
+    public void notifyInviteToApply(String email, String candidateName, String companyName, String jobTitle, String jobUrl, String idempotencyKey) {
+        appendOutbox(NotificationType.INVITE_TO_APPLY, email, Map.of(
+                "candidateName", candidateName,
+                "companyName", companyName,
+                "jobTitle", jobTitle,
+                "jobUrl", jobUrl
+        ), 40, idempotencyKey);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasInvitedToApply(String jobId, String candidateId) {
+        String idempotencyKey = "invite-to-apply-" + jobId + "-" + candidateId;
+        return notificationService.existsByIdempotencyKey(idempotencyKey);
+    }
+
+    @Transactional
     public void notifyUserRegistered(String email, String accountType) {
         appendOutbox(NotificationType.USER_REGISTERED, email, Map.of(
                 "email", email,
