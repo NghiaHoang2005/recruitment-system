@@ -1,7 +1,10 @@
 package com.recruitment.backend.services;
 
 import com.recruitment.backend.domain.dtos.JobDTO;
+import com.recruitment.backend.domain.dtos.JobSummaryDTO;
 import com.recruitment.backend.domain.dtos.JobCategoryDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.recruitment.backend.domain.dtos.JobRequirementItemDTO;
 import com.recruitment.backend.domain.dtos.JobRequirementSectionDTO;
 import com.recruitment.backend.domain.entities.*;
@@ -129,24 +132,27 @@ public class JobService {
         return jobMapper.toDto(savedJob);
     }
 
-    public List<JobDTO> getJobsForUser(String userEmail, Collection<String> authorities) {
+    public Page<JobSummaryDTO> getJobsForUser(String userEmail, Collection<String> authorities, Pageable pageable) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        
+        Pageable sortedPageable = org.springframework.data.domain.PageRequest.of(
+            pageable.getPageNumber(),
+            pageable.getPageSize(),
+            org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")
+        );
+
         if (hasAuthority(authorities, "ROLE_ADMIN") || hasAuthority(authorities, "ADMIN")) {
-            return jobRepository.findAll().stream().map(jobMapper::toDto).collect(Collectors.toList());
+            return jobRepository.findAll(sortedPageable).map(jobMapper::toSummaryDto);
         }
         if (hasAuthority(authorities, "ROLE_RECRUITER") || hasAuthority(authorities, "RECRUITER")) {
             return companyMemberRepository.findFirstByUser_IdAndJoinStatus(user.getId(), JoinStatus.APPROVED)
-                    .map(membership -> jobRepository.findByCompany_IdOrderByCreatedAtDesc(membership.getCompany().getId()))
-                    .orElseGet(() -> jobRepository.findByRecruiterIdOrderByCreatedAtDesc(user.getId()))
-                    .stream()
-                    .map(jobMapper::toDto)
-                    .collect(Collectors.toList());
+                    .map(membership -> jobRepository.findByCompany_Id(membership.getCompany().getId(), sortedPageable))
+                    .orElseGet(() -> jobRepository.findByRecruiterId(user.getId(), sortedPageable))
+                    .map(jobMapper::toSummaryDto);
         }
-        return jobRepository.findByStatusOrderByCreatedAtDesc(JobStatus.PUBLISHED)
-                .stream()
-                .map(jobMapper::toDto)
-                .collect(Collectors.toList());
+        return jobRepository.findByStatus(JobStatus.PUBLISHED, sortedPageable)
+                .map(jobMapper::toSummaryDto);
     }
 
     public JobDTO getJobById(UUID id, String userEmail, Collection<String> authorities) {

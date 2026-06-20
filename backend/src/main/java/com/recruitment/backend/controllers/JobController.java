@@ -2,8 +2,11 @@ package com.recruitment.backend.controllers;
 
 import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.JobDTO;
+import com.recruitment.backend.domain.dtos.JobSummaryDTO;
 import com.recruitment.backend.domain.dtos.JobRecommendationResponse;
 import com.recruitment.backend.domain.dtos.Cv.CvRecommendationResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.recruitment.backend.services.JobMatchService;
 import com.recruitment.backend.services.JobService;
 import lombok.RequiredArgsConstructor;
@@ -46,12 +49,16 @@ public class JobController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<JobDTO>>> getAllJobs(Authentication authentication) {
+    public ResponseEntity<ApiResponse<Page<JobSummaryDTO>>> getAllJobs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
         List<String> authorities = authentication.getAuthorities()
                 .stream()
                 .map(Object::toString)
                 .toList();
-        return ResponseEntity.ok(ApiResponse.success(jobService.getJobsForUser(authentication.getName(), authorities)));
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return ResponseEntity.ok(ApiResponse.success(jobService.getJobsForUser(authentication.getName(), authorities, pageable)));
     }
 
     @GetMapping("/{id:[0-9a-fA-F-]{36}}")

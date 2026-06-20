@@ -12,8 +12,37 @@ import org.springframework.stereotype.Component;
 import java.util.Comparator;
 import java.util.List;
 
+import com.recruitment.backend.domain.dtos.JobSummaryDTO;
+
 @Component
 public class JobMapper {
+    public JobSummaryDTO toSummaryDto(Job job) {
+        if (job == null) return null;
+        return JobSummaryDTO.builder()
+                .id(job.getId())
+                .title(job.getTitle())
+                .location(job.getLocation())
+                .employmentType(job.getEmploymentType())
+                .workMode(job.getWorkMode())
+                .level(job.getLevel())
+                .minSalary(job.getMinSalary())
+                .maxSalary(job.getMaxSalary())
+                .currency(job.getCurrency())
+                .salaryNegotiable(job.getSalaryNegotiable())
+                .companyId(job.getCompany() != null ? job.getCompany().getId() : null)
+                .companyName(job.getCompany() != null ? job.getCompany().getName() : null)
+                .status(job.getStatus())
+                .createdAt(job.getCreatedAt())
+                .publishedAt(job.getPublishedAt())
+                .categories(job.getCategories() == null ? List.of() : job.getCategories().stream()
+                        .map(category -> JobCategoryDTO.builder()
+                                .code(category.getCode())
+                                .name(category.getName())
+                                .build())
+                        .toList())
+                .build();
+    }
+
     public JobDTO toDto(Job job) {
         if (job == null) return null;
         return JobDTO.builder()
