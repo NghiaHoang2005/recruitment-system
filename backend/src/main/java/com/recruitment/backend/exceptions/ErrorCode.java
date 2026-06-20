@@ -63,6 +63,7 @@ public enum ErrorCode {
     JOB_REPORT_INVALID_STATUS(3014, "Trạng thái xử lý báo cáo không hợp lệ", HttpStatus.BAD_REQUEST),
     JOB_CATEGORY_REQUIRED(3015, "Vui lòng chọn ít nhất một ngành nghề", HttpStatus.BAD_REQUEST),
     JOB_CATEGORY_INVALID(3016, "Ngành nghề đã chọn không hợp lệ", HttpStatus.BAD_REQUEST),
+    LOCATION_INVALID(3017, "Địa điểm đã chọn không hợp lệ", HttpStatus.BAD_REQUEST),
 
     MATCHING_WEIGHT_PROFILE_NOT_FOUND(4001, "Weight profile không tồn tại", HttpStatus.NOT_FOUND),
     MATCHING_DATASET_NOT_FOUND(4002, "Relevance dataset không tồn tại", HttpStatus.NOT_FOUND),

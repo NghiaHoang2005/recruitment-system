@@ -22,6 +22,8 @@ public class JobMapper {
                 .description(job.getDescription())
                 .workingTime(job.getWorkingTime())
                 .location(job.getLocation())
+                .locationCode(job.getStandardLocation() != null ? job.getStandardLocation().getCode() : null)
+                .locationName(job.getStandardLocation() != null ? job.getStandardLocation().getName() : null)
                 .employmentType(job.getEmploymentType())
                 .workMode(job.getWorkMode())
                 .level(job.getLevel())

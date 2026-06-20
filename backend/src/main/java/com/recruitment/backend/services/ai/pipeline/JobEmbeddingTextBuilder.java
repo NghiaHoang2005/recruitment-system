@@ -24,7 +24,7 @@ public class JobEmbeddingTextBuilder {
         appendLine(builder, "Job categories", formatCategories(job));
         appendLine(builder, "Job description", job.getDescription());
         appendLine(builder, "Working time", job.getWorkingTime());
-        appendLine(builder, "Location", job.getLocation());
+        appendLine(builder, "Location", formatLocation(job));
         appendLine(builder, "Employment type", job.getEmploymentType());
         appendLine(builder, "Work mode", job.getWorkMode());
         appendLine(builder, "Level", job.getLevel());
@@ -43,7 +43,7 @@ public class JobEmbeddingTextBuilder {
         appendLine(builder, "Job categories", formatCategories(job));
         appendLine(builder, "Job description", job.getDescription());
         appendLine(builder, "Working time", job.getWorkingTime());
-        appendLine(builder, "Location", job.getLocation());
+        appendLine(builder, "Location", formatLocation(job));
         appendLine(builder, "Employment type", job.getEmploymentType());
         appendLine(builder, "Work mode", job.getWorkMode());
         appendLine(builder, "Level", job.getLevel());
@@ -148,6 +148,18 @@ public class JobEmbeddingTextBuilder {
                 .map(category -> category.getName())
                 .sorted()
                 .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    private String formatLocation(Job job) {
+        String locationName = job.getStandardLocation() == null ? null : job.getStandardLocation().getName();
+        String detail = job.getLocation();
+        if (locationName == null || locationName.isBlank()) {
+            return detail == null ? "" : detail;
+        }
+        if (detail == null || detail.isBlank() || detail.equalsIgnoreCase(locationName)) {
+            return locationName;
+        }
+        return detail + ", " + locationName;
     }
 
     private void appendLine(StringBuilder builder, String label, Object value) {

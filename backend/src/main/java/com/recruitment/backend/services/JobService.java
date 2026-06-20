@@ -42,6 +42,7 @@ public class JobService {
     private final NotificationFacade notificationFacade;
     private final AdminSettingsService adminSettingsService;
     private final JobCategoryRepository jobCategoryRepository;
+    private final LocationRepository locationRepository;
 
     @Transactional
     public JobDTO createJob(JobDTO dto, String userEmail) {
@@ -64,6 +65,7 @@ public class JobService {
                 .description(dto.getDescription())
                 .workingTime(dto.getWorkingTime())
                 .location(dto.getLocation())
+                .standardLocation(resolveLocation(dto.getLocationCode()))
                 .employmentType(dto.getEmploymentType())
                 .workMode(dto.getWorkMode())
                 .level(dto.getLevel())
@@ -107,6 +109,7 @@ public class JobService {
         job.setDescription(dto.getDescription());
         job.setWorkingTime(dto.getWorkingTime());
         job.setLocation(dto.getLocation());
+        job.setStandardLocation(resolveLocation(dto.getLocationCode()));
         job.setEmploymentType(dto.getEmploymentType());
         job.setWorkMode(dto.getWorkMode());
         job.setLevel(dto.getLevel());
@@ -260,6 +263,14 @@ public class JobService {
         }
         job.getCategories().clear();
         job.getCategories().addAll(categories);
+    }
+
+    private Location resolveLocation(String locationCode) {
+        if (locationCode == null || locationCode.isBlank()) {
+            return null;
+        }
+        return locationRepository.findByCode(locationCode.trim())
+                .orElseThrow(() -> new AppException(ErrorCode.LOCATION_INVALID));
     }
 
     private void notifyAdminsJobReviewRequested(Job job, User requester) {

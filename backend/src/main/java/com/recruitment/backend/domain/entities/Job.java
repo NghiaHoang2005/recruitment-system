@@ -51,6 +51,10 @@ public class Job {
 
     private String location;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    private Location standardLocation;
+
     @Enumerated(EnumType.STRING)
     private EmploymentType employmentType;
 
