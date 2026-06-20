@@ -33,6 +33,7 @@ spring:
         - classpath:db-migration-saved-jobs.sql
         - classpath:db-migration-job-reports.sql
         - classpath:db-migration-job-categories.sql
+        - classpath:db-migration-locations.sql
   jpa:
     show-sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect

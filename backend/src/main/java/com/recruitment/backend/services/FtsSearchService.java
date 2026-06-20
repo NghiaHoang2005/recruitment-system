@@ -6,7 +6,10 @@ import com.recruitment.backend.domain.dtos.JobDTO;
 import com.recruitment.backend.domain.dtos.JobFtsSearchResponse;
 import com.recruitment.backend.domain.entities.Cv.Cv;
 import com.recruitment.backend.domain.entities.Job;
+import com.recruitment.backend.domain.enums.EmploymentType;
+import com.recruitment.backend.domain.enums.JobLevel;
 import com.recruitment.backend.domain.enums.JobStatus;
+import com.recruitment.backend.domain.enums.WorkMode;
 import com.recruitment.backend.mappers.JobMapper;
 import com.recruitment.backend.repositories.CvRepository;
 import com.recruitment.backend.repositories.JobRepository;
@@ -29,18 +32,43 @@ public class FtsSearchService {
     private final CvRepository cvRepository;
     private final JobMapper jobMapper;
 
-    public List<JobFtsSearchResponse> searchJobs(String query, JobStatus status, String categoryCode, int limit) {
-        if (query == null || query.isBlank()) {
-            return List.of();
-        }
+    public List<JobFtsSearchResponse> searchJobs(
+            String query,
+            JobStatus status,
+            String categoryCode,
+            List<String> locations,
+            List<EmploymentType> employmentTypes,
+            List<WorkMode> workModes,
+            List<JobLevel> levels,
+            Integer salaryMin,
+            Integer salaryMax,
+            Boolean salaryNegotiable,
+            JobSearchSort sort,
+            int limit
+    ) {
         int safeLimit = clampLimit(limit);
+        String normalizedQuery = query == null ? "" : query.trim();
         String statusValue = status == null ? JobStatus.PUBLISHED.name() : status.name();
 
         String normalizedCategoryCode = categoryCode == null || categoryCode.isBlank()
                 ? null
                 : categoryCode.trim();
-        List<JobRepository.JobFtsView> rows =
-                jobRepository.searchJobsByFts(query, statusValue, normalizedCategoryCode, safeLimit);
+        List<JobRepository.JobFtsView> rows = jobRepository.searchJobsByFts(
+                normalizedQuery,
+                !normalizedQuery.isBlank(),
+                statusValue,
+                normalizedCategoryCode,
+                toDelimitedString(locations),
+                toDelimitedString(employmentTypes),
+                toDelimitedString(workModes),
+                toDelimitedString(levels),
+                salaryMin,
+                salaryMax,
+                salaryNegotiable,
+                sort == JobSearchSort.OLDEST,
+                sort == JobSearchSort.SALARY_DESC,
+                safeLimit
+        );
         if (rows.isEmpty()) {
             return List.of();
         }
@@ -109,5 +137,26 @@ public class FtsSearchService {
             return 1;
         }
         return Math.min(limit, MAX_LIMIT);
+    }
+
+    private String toDelimitedString(List<?> values) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        String joined = values.stream()
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .collect(Collectors.joining("||"));
+        return joined.isBlank() ? null : joined;
+    }
+
+    public enum JobSearchSort {
+        RELEVANCE,
+        NEWEST,
+        OLDEST,
+        SALARY_DESC
     }
 }

@@ -23,6 +23,8 @@ public class JobDTO {
     private String description;
     private String workingTime;
     private String location;
+    private String locationCode;
+    private String locationName;
     private EmploymentType employmentType;
     private WorkMode workMode;
     private JobLevel level;

@@ -41,15 +41,21 @@ public interface JobRepository extends JpaRepository<Job, UUID>, JpaSpecificatio
 
     @Query(value = """
         SELECT cast(j.id as varchar) AS jobId,
-               ts_rank(j.search_tsv, websearch_to_tsquery('simple', :query)) AS rank
+               CASE
+                   WHEN :hasQuery THEN ts_rank(j.search_tsv, websearch_to_tsquery('simple', :query))
+                   ELSE 0
+               END AS rank
         FROM jobs j
         WHERE (
-            j.search_tsv @@ websearch_to_tsquery('simple', :query)
-            OR j.title ILIKE concat('%', :query, '%')
-            OR EXISTS (
-                SELECT 1 FROM job_skills js
-                JOIN skills s ON s.id = js.skill_id
-                WHERE js.job_id = j.id AND s.name ILIKE concat('%', :query, '%')
+            :hasQuery = false
+            OR (
+                j.search_tsv @@ websearch_to_tsquery('simple', :query)
+                OR j.title ILIKE concat('%', :query, '%')
+                OR EXISTS (
+                    SELECT 1 FROM job_skills js
+                    JOIN skills s ON s.id = js.skill_id
+                    WHERE js.job_id = j.id AND s.name ILIKE concat('%', :query, '%')
+                )
             )
         )
         AND (:status IS NULL OR j.status = :status)
@@ -62,13 +68,63 @@ public interface JobRepository extends JpaRepository<Job, UUID>, JpaSpecificatio
                 WHERE jcm.job_id = j.id AND jc.code = :categoryCode
             )
         )
-        ORDER BY rank DESC, j.created_at DESC
+        AND (
+            :locations IS NULL
+            OR EXISTS (
+                SELECT 1
+                FROM locations l
+                WHERE l.id = j.location_id
+                  AND l.code = ANY(string_to_array(CAST(:locations AS text), '||'))
+            )
+        )
+        AND (
+            :employmentTypes IS NULL
+            OR j.employment_type = ANY(string_to_array(CAST(:employmentTypes AS text), '||'))
+        )
+        AND (
+            :workModes IS NULL
+            OR j.work_mode = ANY(string_to_array(CAST(:workModes AS text), '||'))
+        )
+        AND (
+            :levels IS NULL
+            OR j.level = ANY(string_to_array(CAST(:levels AS text), '||'))
+        )
+        AND (
+            :salaryNegotiable IS NULL
+            OR j.salary_negotiable = :salaryNegotiable
+        )
+        AND (
+            :salaryMin IS NULL
+            OR COALESCE(j.max_salary, j.min_salary, 0) >= :salaryMin
+        )
+        AND (
+            :salaryMax IS NULL
+            OR COALESCE(j.min_salary, j.max_salary, 0) <= :salaryMax
+        )
+        ORDER BY
+            CASE WHEN :oldest THEN j.created_at END ASC,
+            CASE WHEN :salaryDesc THEN COALESCE(j.max_salary, j.min_salary, 0) END DESC,
+            CASE
+                WHEN :hasQuery AND NOT :oldest AND NOT :salaryDesc
+                THEN ts_rank(j.search_tsv, websearch_to_tsquery('simple', :query))
+            END DESC,
+            j.created_at DESC
         LIMIT :limit
         """, nativeQuery = true)
     List<JobFtsView> searchJobsByFts(
             @Param("query") String query,
+            @Param("hasQuery") boolean hasQuery,
             @Param("status") String status,
             @Param("categoryCode") String categoryCode,
+            @Param("locations") String locations,
+            @Param("employmentTypes") String employmentTypes,
+            @Param("workModes") String workModes,
+            @Param("levels") String levels,
+            @Param("salaryMin") Integer salaryMin,
+            @Param("salaryMax") Integer salaryMax,
+            @Param("salaryNegotiable") Boolean salaryNegotiable,
+            @Param("oldest") boolean oldest,
+            @Param("salaryDesc") boolean salaryDesc,
             @Param("limit") int limit
     );
 
