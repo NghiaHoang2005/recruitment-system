@@ -22,6 +22,7 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
     Optional<Application> findByIdAndCandidate_UserId(UUID id, UUID candidateId);
     List<Application> findByJob_Company_IdOrderByAppliedAtDesc(UUID companyId);
     List<Application> findByJob_IdAndJob_Company_IdOrderByAppliedAtDesc(UUID jobId, UUID companyId);
+    List<Application> findByJob_IdAndStatusIn(UUID jobId, Collection<ApplicationStatus> statuses);
     Optional<Application> findByIdAndJob_Company_Id(UUID id, UUID companyId);
     long countByJob_Company_Id(UUID companyId);
     long countByJob_Company_IdAndAppliedAtAfter(UUID companyId, LocalDateTime appliedAt);

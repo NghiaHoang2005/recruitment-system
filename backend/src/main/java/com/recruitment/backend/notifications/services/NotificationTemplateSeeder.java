@@ -33,6 +33,10 @@ public class NotificationTemplateSeeder implements CommandLineRunner {
                 "Gợi ý việc làm phù hợp",
                 "<p>Chào {{candidateName}},</p><p>Dưới đây là các công việc phù hợp với bạn:</p><p>{{matchedJobs}}</p>");
 
+        createIfMissing(NotificationType.INVITE_TO_APPLY, locale,
+                "Lời mời ứng tuyển từ {{companyName}}",
+                "<p>Chào {{candidateName}},</p><p>Công ty <b>{{companyName}}</b> rất ấn tượng với hồ sơ của bạn và muốn mời bạn ứng tuyển vào vị trí <b>{{jobTitle}}</b>.</p><p>Bạn có thể xem chi tiết công việc và ứng tuyển tại đường dẫn sau: <a href=\"{{jobUrl}}\">{{jobUrl}}</a></p><p>Trân trọng,</p><p>{{companyName}}</p>");
+
         createIfMissing(NotificationType.USER_REGISTERED, locale,
                 "Chào mừng bạn đến với Recruitment System",
                 "<p>Tài khoản {{accountType}} với email <b>{{email}}</b> đã được tạo thành công.</p>");

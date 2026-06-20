@@ -6,14 +6,17 @@ import com.recruitment.backend.domain.dtos.Cv.CvRecommendationResponse;
 import com.recruitment.backend.domain.entities.Cv.Cv;
 import com.recruitment.backend.domain.entities.Cv.CvEmbedding;
 import com.recruitment.backend.domain.entities.Cv.EmbeddingType;
+import com.recruitment.backend.domain.entities.Application;
 import com.recruitment.backend.domain.entities.Job;
 import com.recruitment.backend.domain.entities.JobEmbedding;
 import com.recruitment.backend.domain.entities.JobSkill;
+import com.recruitment.backend.domain.enums.ApplicationStatus;
 import com.recruitment.backend.domain.enums.JobEmbeddingType;
 import com.recruitment.backend.domain.enums.JobStatus;
 import com.recruitment.backend.domain.enums.RequirementSectionType;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
+import com.recruitment.backend.repositories.ApplicationRepository;
 import com.recruitment.backend.repositories.CandidateSkillRepository;
 import com.recruitment.backend.repositories.CvEmbeddingRepository;
 import com.recruitment.backend.repositories.CvRepository;
@@ -53,6 +56,7 @@ public class JobMatchService {
     private final JobEmbeddingRepository jobEmbeddingRepository;
     private final JobSkillRepository jobSkillRepository;
     private final CandidateSkillRepository candidateSkillRepository;
+    private final ApplicationRepository applicationRepository;
     private final HybridMatchingProperties hybridMatchingProperties;
     private final MatchingWeightService matchingWeightService;
     private final MatchingMonitoringService matchingMonitoringService;
@@ -253,6 +257,12 @@ public class JobMatchService {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
 
+        List<Application> excludedApps = applicationRepository.findByJob_IdAndStatusIn(
+                jobId, List.of(ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN));
+        Set<UUID> excludedCandidateIds = excludedApps.stream()
+                .map(app -> app.getCandidate().getUserId())
+                .collect(Collectors.toSet());
+
         int safeTopK = clampTopK(topK);
         int poolSize = resolveCandidatePoolSize(safeTopK);
         List<JobEmbedding> jobEmbeddings = jobEmbeddingRepository.findByJob_Id(jobId);
@@ -278,8 +288,12 @@ public class JobMatchService {
             return List.of();
         }
         Set<UUID> openToWorkCvIds = cvs.stream()
+                .filter(cv -> !excludedCandidateIds.contains(cv.getCandidate().getUserId()))
                 .map(Cv::getId)
                 .collect(Collectors.toSet());
+        if (openToWorkCvIds.isEmpty()) {
+            return List.of();
+        }
         Map<UUID, Cv> cvMap = cvs.stream()
                 .collect(Collectors.toMap(Cv::getId, cv -> cv));
         Map<UUID, List<CvEmbedding>> cvEmbeddingMap = loadCvEmbeddings(openToWorkCvIds);
