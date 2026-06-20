@@ -21,6 +21,7 @@ public class CompanyDashboardResponse {
     private int companySize;
     private String taxCode;
     private String businessLicense;
+    private String logoUrl;
     private CompanyStatus status;
     private CompanyRole currentUserCompanyRole;
     private long memberCount;

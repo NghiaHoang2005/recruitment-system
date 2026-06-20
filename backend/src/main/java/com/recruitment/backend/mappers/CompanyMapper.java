@@ -10,6 +10,7 @@ import org.mapstruct.Mapping;
 public interface CompanyMapper {
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "status", ignore = true)
+    @Mapping(target = "logoUrl", ignore = true)
     Company toCompany(CompanyRequest request);
 
     @Mapping(target = "createdById", source = "createdBy.id")

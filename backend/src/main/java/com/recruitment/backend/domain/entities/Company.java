@@ -52,6 +52,9 @@ public class Company {
     @Column(nullable = false)
     private String businessLicense;
 
+    @Column(name = "logo_url", length = 500)
+    private String logoUrl;
+
     @ManyToOne
     @JoinColumn(name = "created_by")
     private User createdBy;

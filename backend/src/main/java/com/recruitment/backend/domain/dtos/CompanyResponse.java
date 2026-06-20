@@ -20,6 +20,7 @@ public class CompanyResponse {
     private int companySize;
     private String taxCode;
     private String businessLicense;
+    private String logoUrl;
     private String createdById;
     private CompanyStatus status;
 }

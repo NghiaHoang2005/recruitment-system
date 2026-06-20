@@ -30,6 +30,12 @@ public class JobSummaryDTO {
     private Boolean salaryNegotiable;
     private UUID companyId;
     private String companyName;
+    private String companyLogoUrl;
+    private String companyIndustry;
+    private Integer companySize;
+    private String companyAddress;
+    private String companyCity;
+    private String companyCountry;
     private JobStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime publishedAt;
