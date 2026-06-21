@@ -21,6 +21,8 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -89,7 +91,12 @@ public class JobService {
         updateNormalizedText(job);
 
         Job savedJob = jobRepository.save(job);
-        jobAsyncProcessingService.processJobAsync(savedJob.getId());
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                jobAsyncProcessingService.processJobAsync(savedJob.getId());
+            }
+        });
         if (savedJob.getStatus() == JobStatus.PENDING && adminSettingsService.notifyAdminsForJobReview()) {
             notifyAdminsJobReviewRequested(savedJob, recruiter);
         }
@@ -128,7 +135,12 @@ public class JobService {
         updateNormalizedText(job);
 
         Job savedJob = jobRepository.save(job);
-        jobAsyncProcessingService.processJobAsync(savedJob.getId());
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                jobAsyncProcessingService.processJobAsync(savedJob.getId());
+            }
+        });
         return jobMapper.toDto(savedJob);
     }
 
