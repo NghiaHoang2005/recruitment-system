@@ -59,11 +59,7 @@ public class JobService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        JobStatus status = company.getStatus() == CompanyStatus.ACTIVE
-                && adminSettingsService.autoApproveJobsFromVerifiedCompanies()
-                && !adminSettingsService.requireAdminApprovalForAllJobs()
-                ? JobStatus.PUBLISHED
-                : JobStatus.PENDING;
+        JobStatus status = JobStatus.PROCESSING;
 
         Job job = Job.builder()
                 .title(dto.getTitle())
@@ -97,9 +93,6 @@ public class JobService {
                 jobAsyncProcessingService.processJobAsync(savedJob.getId());
             }
         });
-        if (savedJob.getStatus() == JobStatus.PENDING && adminSettingsService.notifyAdminsForJobReview()) {
-            notifyAdminsJobReviewRequested(savedJob, recruiter);
-        }
         return jobMapper.toDto(savedJob);
     }
 

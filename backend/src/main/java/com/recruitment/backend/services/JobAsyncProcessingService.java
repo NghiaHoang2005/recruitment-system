@@ -1,7 +1,9 @@
 package com.recruitment.backend.services;
 
 import com.recruitment.backend.domain.entities.Job;
+import com.recruitment.backend.notifications.domain.enums.NotificationType;
 import com.recruitment.backend.repositories.JobRepository;
+import com.recruitment.backend.repositories.UserRepository;
 import com.recruitment.backend.services.ai.model.JobStructuredExtractionPayload;
 import com.recruitment.backend.services.ai.pipeline.JobEmbeddingPipelineService;
 import com.recruitment.backend.services.ai.pipeline.JobEmbeddingTextBuilder;
@@ -21,11 +23,14 @@ import java.util.UUID;
 public class JobAsyncProcessingService {
 
     private final JobRepository jobRepository;
+    private final UserRepository userRepository;
     private final JobEmbeddingPipelineService jobEmbeddingPipelineService;
     private final JobStructuredExtractionService jobStructuredExtractionService;
     private final JobSkillExtractionService jobSkillExtractionService;
     private final TextNormalizationService textNormalizationService;
     private final JobEmbeddingTextBuilder jobEmbeddingTextBuilder;
+    private final AdminSettingsService adminSettingsService;
+    private final com.recruitment.backend.notifications.services.NotificationFacade notificationFacade;
 
     @Async("taskExecutor")
     @Transactional
@@ -52,13 +57,37 @@ public class JobAsyncProcessingService {
 
         try {
             jobEmbeddingPipelineService.embedAndStore(job);
-            if (job.getCompany() != null && job.getCompany().getStatus() == com.recruitment.backend.domain.enums.CompanyStatus.ACTIVE) {
-                job.setStatus(com.recruitment.backend.domain.enums.JobStatus.PUBLISHED);
-                job.setPublishedAt(java.time.LocalDateTime.now());
-                jobRepository.save(job);
-            }
         } catch (Exception ex) {
             log.warn("Could not generate job embeddings for job {}: {}", job.getId(), ex.getMessage());
+        }
+
+        com.recruitment.backend.domain.enums.JobStatus targetStatus = 
+            job.getCompany() != null && job.getCompany().getStatus() == com.recruitment.backend.domain.enums.CompanyStatus.ACTIVE
+            && adminSettingsService.autoApproveJobsFromVerifiedCompanies()
+            && !adminSettingsService.requireAdminApprovalForAllJobs()
+            ? com.recruitment.backend.domain.enums.JobStatus.PUBLISHED
+            : com.recruitment.backend.domain.enums.JobStatus.PENDING;
+
+        job.setStatus(targetStatus);
+        if (targetStatus == com.recruitment.backend.domain.enums.JobStatus.PUBLISHED) {
+            job.setPublishedAt(java.time.LocalDateTime.now());
+        }
+        jobRepository.save(job);
+
+        if (targetStatus == com.recruitment.backend.domain.enums.JobStatus.PENDING && adminSettingsService.notifyAdminsForJobReview()) {
+            userRepository.findByRole_NameAndEnabledTrue("ADMIN").forEach(admin -> {
+                try {
+                    notificationFacade.notifyAdminReviewRequested(
+                            admin.getEmail(),
+                            job.getTitle(),
+                            job.getRecruiter().getEmail(),
+                            NotificationType.ADMIN_JOB_REVIEW_REQUESTED,
+                            "admin-job-review:" + job.getId() + ":" + admin.getId()
+                    );
+                } catch (RuntimeException exception) {
+                    log.warn("Could not enqueue job review notification for admin {}", admin.getId(), exception);
+                }
+            });
         }
     }
 }
