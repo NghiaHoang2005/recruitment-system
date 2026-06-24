@@ -128,4 +128,17 @@ public class JobController {
         List<CvRecommendationResponse> response = jobMatchService.recommendCvs(id, topK);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @PatchMapping("/{id:[0-9a-fA-F-]{36}}/close")
+    public ResponseEntity<ApiResponse<JobDTO>> closeJob(@PathVariable UUID id, Authentication authentication) {
+        String email = authentication.getName();
+        return ResponseEntity.ok(ApiResponse.success(jobService.closeJob(id, email)));
+    }
+
+    @DeleteMapping("/{id:[0-9a-fA-F-]{36}}")
+    public ResponseEntity<ApiResponse<Void>> deleteJob(@PathVariable UUID id, Authentication authentication) {
+        String email = authentication.getName();
+        jobService.deleteJob(id, email);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }

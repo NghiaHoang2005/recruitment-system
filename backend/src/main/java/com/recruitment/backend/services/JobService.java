@@ -48,6 +48,7 @@ public class JobService {
     private final AdminSettingsService adminSettingsService;
     private final JobCategoryRepository jobCategoryRepository;
     private final LocationRepository locationRepository;
+    private final ApplicationRepository applicationRepository;
 
     @Transactional
     public JobDTO createJob(JobDTO dto, String userEmail) {
@@ -135,6 +136,47 @@ public class JobService {
             }
         });
         return jobMapper.toDto(savedJob);
+    }
+
+    @Transactional
+    public JobDTO closeJob(UUID id, String userEmail) {
+        User recruiter = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
+
+        if (job.getRecruiter() == null || !job.getRecruiter().getId().equals(recruiter.getId())) {
+            Company company = getApprovedCompanyForRecruiter(recruiter);
+            if (job.getCompany() == null || !job.getCompany().getId().equals(company.getId())) {
+                throw new AppException(ErrorCode.UNAUTHORIZED);
+            }
+        }
+
+        job.setStatus(JobStatus.CLOSED);
+        job.setClosedAt(LocalDateTime.now());
+        Job savedJob = jobRepository.save(job);
+        return jobMapper.toDto(savedJob);
+    }
+
+    @Transactional
+    public void deleteJob(UUID id, String userEmail) {
+        User recruiter = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.JOB_NOT_FOUND));
+
+        if (job.getRecruiter() == null || !job.getRecruiter().getId().equals(recruiter.getId())) {
+            Company company = getApprovedCompanyForRecruiter(recruiter);
+            if (job.getCompany() == null || !job.getCompany().getId().equals(company.getId())) {
+                throw new AppException(ErrorCode.UNAUTHORIZED);
+            }
+        }
+
+        if (applicationRepository.countByJob_Id(id) > 0) {
+            throw new AppException(ErrorCode.JOB_HAS_APPLICATIONS);
+        }
+
+        jobRepository.delete(job);
     }
 
     public Page<JobSummaryDTO> getJobsForUser(String userEmail, Collection<String> authorities, Pageable pageable) {

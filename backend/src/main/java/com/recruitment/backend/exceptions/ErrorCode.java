@@ -68,6 +68,7 @@ public enum ErrorCode {
     COMPANY_LOGO_FILE_TOO_LARGE(3019, "Logo công ty không được vượt quá 5 MB", HttpStatus.BAD_REQUEST),
     COMPANY_LOGO_INVALID_FILE_TYPE(3020, "Logo công ty chỉ hỗ trợ JPG, PNG hoặc WebP", HttpStatus.BAD_REQUEST),
     COMPANY_LOGO_UPLOAD_FAILED(3021, "Không thể tải logo công ty lên", HttpStatus.INTERNAL_SERVER_ERROR),
+    JOB_HAS_APPLICATIONS(3022, "Không thể xóa tin tuyển dụng đã có ứng viên nộp hồ sơ. Vui lòng đóng tin để ẩn tin tuyển dụng.", HttpStatus.BAD_REQUEST),
 
     MATCHING_WEIGHT_PROFILE_NOT_FOUND(4001, "Weight profile không tồn tại", HttpStatus.NOT_FOUND),
     MATCHING_DATASET_NOT_FOUND(4002, "Relevance dataset không tồn tại", HttpStatus.NOT_FOUND),

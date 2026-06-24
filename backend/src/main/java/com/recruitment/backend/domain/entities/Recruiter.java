@@ -32,4 +32,9 @@ public class Recruiter {
     private String phone;
 
     private String position;
+
+    private String headline;
+
+    @Column(length = 1024)
+    private String profilePictureUrl;
 }

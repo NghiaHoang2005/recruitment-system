@@ -5,15 +5,23 @@ import com.cloudinary.utils.ObjectUtils;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
 import com.recruitment.backend.domain.dtos.OpenToWorkUpdateRequest;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
+import com.recruitment.backend.domain.dtos.RecruiterProfileResponse;
+import com.recruitment.backend.domain.dtos.RecruiterProfileUpdateRequest;
 import com.recruitment.backend.domain.dtos.RegisterCandidateProfileRequest;
 import com.recruitment.backend.domain.entities.Candidate.Candidate;
 import com.recruitment.backend.domain.entities.Candidate.CandidateSkill;
+import com.recruitment.backend.domain.entities.CompanyMember;
+import com.recruitment.backend.domain.entities.Recruiter;
 import com.recruitment.backend.domain.entities.User;
 import com.recruitment.backend.domain.enums.AccountType;
+import com.recruitment.backend.domain.enums.JoinStatus;
 import com.recruitment.backend.exceptions.AppException;
 import com.recruitment.backend.exceptions.ErrorCode;
+import com.recruitment.backend.repositories.ApplicationRepository;
 import com.recruitment.backend.repositories.CandidateRepository;
 import com.recruitment.backend.repositories.CandidateSkillRepository;
+import com.recruitment.backend.repositories.CompanyMemberRepository;
+import com.recruitment.backend.repositories.RecruiterRepository;
 import com.recruitment.backend.repositories.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -28,11 +36,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.recruitment.backend.domain.entities.CompanyMember;
-import com.recruitment.backend.domain.enums.JoinStatus;
-import com.recruitment.backend.repositories.ApplicationRepository;
-import com.recruitment.backend.repositories.CompanyMemberRepository;
-
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
@@ -43,6 +46,7 @@ public class ProfileService {
     private final UserRepository userRepository;
     private final CompanyMemberRepository companyMemberRepository;
     private final ApplicationRepository applicationRepository;
+    private final RecruiterRepository recruiterRepository;
     private final Cloudinary cloudinary;
 
     private static final long MAX_AVATAR_SIZE_BYTES = 5L * 1024 * 1024;
@@ -51,6 +55,8 @@ public class ProfileService {
             "image/png",
             "image/webp"
     );
+
+    // ─── Candidate Profile ────────────────────────────────────────────────────
 
     @Transactional
     public CandidateProfileResponse getCandidateProfile(UUID userId) {
@@ -123,7 +129,8 @@ public class ProfileService {
 
     @Transactional
     public CandidateProfileResponse confirmAndUpdateProfile(UUID userId, ProfileCandidateUpdateRequest request) {
-        Candidate candidate = candidateRepository.findById(userId).orElseThrow(()-> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
+        Candidate candidate = candidateRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.CANDIDATE_NOT_FOUND));
         candidate.setFullName(request.getFullName());
         candidate.setHeadline(request.getHeadline());
         candidate.setPhoneNumber(request.getPhoneNumber());
@@ -176,6 +183,82 @@ public class ProfileService {
             throw new AppException(ErrorCode.AVATAR_UPLOAD_FAILED);
         }
     }
+
+    // ─── Recruiter Profile ────────────────────────────────────────────────────
+
+    @Transactional
+    public RecruiterProfileResponse getRecruiterProfile(UUID userId) {
+        Recruiter recruiter = recruiterRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.RECRUITER_PROFILE_NOT_FOUND));
+
+        Optional<CompanyMember> memberOpt = companyMemberRepository
+                .findFirstByUser_IdAndJoinStatus(userId, JoinStatus.APPROVED);
+
+        String companyName = memberOpt.map(m -> m.getCompany().getName()).orElse(null);
+        String companyRole = memberOpt.map(m -> m.getRole() != null ? m.getRole().name() : null).orElse(null);
+
+        return RecruiterProfileResponse.builder()
+                .recruiterId(recruiter.getId())
+                .fullName(recruiter.getFullName())
+                .email(recruiter.getUser().getEmail())
+                .phoneNumber(recruiter.getPhone())
+                .profilePictureUrl(recruiter.getProfilePictureUrl())
+                .headline(recruiter.getHeadline())
+                .companyName(companyName)
+                .companyRole(companyRole)
+                .build();
+    }
+
+    @Transactional
+    public RecruiterProfileResponse updateRecruiterProfile(UUID userId, RecruiterProfileUpdateRequest request) {
+        Recruiter recruiter = recruiterRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.RECRUITER_PROFILE_NOT_FOUND));
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            recruiter.setFullName(request.getFullName());
+        }
+        if (request.getPhoneNumber() != null) {
+            recruiter.setPhone(request.getPhoneNumber());
+        }
+        if (request.getHeadline() != null) {
+            recruiter.setHeadline(request.getHeadline());
+        }
+
+        recruiterRepository.save(recruiter);
+        return getRecruiterProfile(userId);
+    }
+
+    @Transactional
+    public RecruiterProfileResponse updateRecruiterAvatar(UUID userId, MultipartFile file) {
+        validateAvatar(file);
+        Recruiter recruiter = recruiterRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.RECRUITER_PROFILE_NOT_FOUND));
+
+        try {
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "recruiter_avatars",
+                            "public_id", userId.toString(),
+                            "resource_type", "image",
+                            "overwrite", true,
+                            "invalidate", true
+                    )
+            );
+            Object secureUrl = uploadResult.get("secure_url");
+            if (secureUrl == null || secureUrl.toString().isBlank()) {
+                throw new AppException(ErrorCode.AVATAR_UPLOAD_FAILED);
+            }
+
+            recruiter.setProfilePictureUrl(secureUrl.toString());
+            recruiterRepository.save(recruiter);
+            return getRecruiterProfile(userId);
+        } catch (IOException e) {
+            throw new AppException(ErrorCode.AVATAR_UPLOAD_FAILED);
+        }
+    }
+
+    // ─── Shared Helpers ───────────────────────────────────────────────────────
 
     private void validateAvatar(MultipartFile file) {
         if (file == null || file.isEmpty()) {

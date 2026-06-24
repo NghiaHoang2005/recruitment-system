@@ -4,6 +4,8 @@ import com.recruitment.backend.domain.dtos.ApiResponse;
 import com.recruitment.backend.domain.dtos.CandidateProfileResponse;
 import com.recruitment.backend.domain.dtos.OpenToWorkUpdateRequest;
 import com.recruitment.backend.domain.dtos.ProfileCandidateUpdateRequest;
+import com.recruitment.backend.domain.dtos.RecruiterProfileResponse;
+import com.recruitment.backend.domain.dtos.RecruiterProfileUpdateRequest;
 import com.recruitment.backend.domain.dtos.RegisterCandidateProfileRequest;
 import com.recruitment.backend.services.ProfileService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,8 @@ public class ProfileController {
         return UUID.fromString(jwt.getClaim("user_id"));
     }
 
+    // ─── Candidate ────────────────────────────────────────────────────────────
+
     @GetMapping("/candidate")
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> getCandidateProfile() {
         CandidateProfileResponse response = profileService.getCandidateProfile(getCurrentUserId());
@@ -47,12 +51,14 @@ public class ProfileController {
     }
 
     @PutMapping("/candidate")
-    public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateCandidateProfile(@RequestBody ProfileCandidateUpdateRequest request) {
+    public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateCandidateProfile(
+            @RequestBody ProfileCandidateUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success(profileService.confirmAndUpdateProfile(getCurrentUserId(), request)));
     }
 
     @PutMapping("/candidate/open-to-work")
-    public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateOpenToWork(@RequestBody OpenToWorkUpdateRequest request) {
+    public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateOpenToWork(
+            @RequestBody OpenToWorkUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success(profileService.updateOpenToWork(getCurrentUserId(), request)));
     }
 
@@ -60,5 +66,24 @@ public class ProfileController {
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateCandidateAvatar(
             @RequestPart("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success(profileService.updateAvatar(getCurrentUserId(), file)));
+    }
+
+    // ─── Recruiter ────────────────────────────────────────────────────────────
+
+    @GetMapping("/recruiter")
+    public ResponseEntity<ApiResponse<RecruiterProfileResponse>> getRecruiterProfile() {
+        return ResponseEntity.ok(ApiResponse.success(profileService.getRecruiterProfile(getCurrentUserId())));
+    }
+
+    @PutMapping("/recruiter")
+    public ResponseEntity<ApiResponse<RecruiterProfileResponse>> updateRecruiterProfile(
+            @RequestBody RecruiterProfileUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(profileService.updateRecruiterProfile(getCurrentUserId(), request)));
+    }
+
+    @PutMapping(value = "/recruiter/avatar", consumes = "multipart/form-data")
+    public ResponseEntity<ApiResponse<RecruiterProfileResponse>> updateRecruiterAvatar(
+            @RequestPart("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.success(profileService.updateRecruiterAvatar(getCurrentUserId(), file)));
     }
 }
